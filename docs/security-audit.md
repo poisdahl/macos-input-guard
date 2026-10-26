@@ -35,6 +35,14 @@ CI runs both suites on Intel and Apple Silicon. No CI job invokes a real lock.
 The read-only `check-lock` command has found the intended Finder menu action on
 the initial Intel test machine; availability is not proof that the action locks.
 
+A supervised follow-up on 2026-10-26 confirmed that `test-screen-lock` displayed
+the real macOS lock screen and the owner could log back in normally. The same
+pre-existing native Calculator binding then completed `731 + 269 = 1000` and
+`17 × 19 = 323` during a 30-second candidate trial, which expired normally.
+That trial captured no physical input, so it does not qualify physical blocking.
+Physical blocking, code unlock and retained filtering after fallback remain
+pending. Healthy `lock` mode has no periodic status output; `trial` does.
+
 **The changed runtime still requires supervised qualification before release or
 installation.** Verify `test-screen-lock`, normal macOS login, a bounded physical
 input/code-unlock test, and a fault-triggered lock with remaining filtering.

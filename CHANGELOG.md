@@ -8,6 +8,9 @@ single blocking instance, actual requested event-mask verification and bounded
 diagnostic state. Detected protection loss and termination signals now attempt
 the native macOS Lock Screen action while retaining remaining filtering.
 
+Ordinary timed and unlimited locks no longer print periodic `ACTIVE` lines.
+Diagnostic progress remains available in the bounded `trial` mode.
+
 The fallback is best effort and currently requires the system Finder's English
 Lock Screen menu with its default shortcut. Crashes/SIGKILL and interception
 gaps remain outside its guarantees. New isolated security regressions run in CI;
