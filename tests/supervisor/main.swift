@@ -1,0 +1,99 @@
+// SPDX-License-Identifier: MIT
+// This harness NEVER calls requestNativeLock, reads codes or creates event taps.
+import Foundation
+import Darwin
+
+let output = StatusOutput()
+func report(_ text: String) { output.report(text) }
+atexit { output.flush() }
+let mode = CommandLine.arguments.dropFirst().first ?? "suite"
+let executable = Bundle.main.executablePath!
+if mode.hasPrefix("worker-") {
+    let scenario = String(mode.dropFirst(7))
+    if scenario == "preflight" { exit(2) }
+    guard let channel = GuardWorkerChannel(), channel.arm() else { exit(41) }
+    switch scenario {
+    case "clean":
+        guard channel.heartbeat(), channel.complete() else { exit(42) }
+        exit(0)
+    case "zero": exit(0)
+    case "expiry":
+        for _ in 0..<3 { usleep(80_000); guard channel.heartbeat() else { exit(42) } }
+        guard channel.complete() else { exit(42) }
+        exit(0)
+    case "parent-term": kill(getppid(), SIGTERM); sleep(3)
+    case "ack-timeout":
+        guard !channel.complete(), !channel.supervisorHasExited else { exit(48) }
+        print("OWNERSHIP_PASS"); exit(0)
+    case "crash": raise(SIGKILL)
+    case "hang": raise(SIGSTOP)
+    case "late": usleep(900_000); _ = channel.complete()
+    case "cleanup-hang":
+        guard channel.complete() else { exit(43) }
+        raise(SIGSTOP)
+    case "stale":
+        let line = "H:\(ProcessInfo.processInfo.systemUptime - 60)\n"
+        _ = line.withCString { write(3, $0, strlen($0)) }
+        sleep(3)
+    case "broken": close(3); sleep(3)
+    case "orphan":
+        // The only process signalled is this harness worker's own supervisor.
+        kill(getppid(), SIGKILL)
+        usleep(150_000)
+        guard !channel.heartbeat(), channel.supervisorHasExited else { exit(44) }
+        print("ORPHAN_PASS")
+        exit(0)
+    case "reservation":
+        let inherited = try! BlockingInstance(inheritedDescriptor: 4)
+        kill(getppid(), SIGKILL); usleep(150_000)
+        guard channel.supervisorHasExited, !channel.heartbeat() else { exit(49) }
+        do {
+            _ = try BlockingInstance(path: CommandLine.arguments[2])
+            exit(50)
+        } catch BlockingInstanceError.alreadyRunning {
+            print("RESERVATION_PASS")
+        } catch { exit(51) }
+        withExtendedLifetime(inherited) {}
+        exit(0)
+    default: exit(45)
+    }
+    exit(46)
+}
+if mode == "reservation-supervisor" {
+    let reservation = try! BlockingInstance(path: CommandLine.arguments[2])
+    let result = superviseGuard(executable: executable, arguments: ["worker-reservation", CommandLine.arguments[2]],
+                               heartbeatTimeout: 0.4, reservationFD: reservation.inheritedDescriptor) {
+        fatalError("Reservation test supervisor must have exited")
+    }
+    withExtendedLifetime(reservation) {}
+    exit(result)
+}
+if mode == "orphan-supervisor" {
+    exit(superviseGuard(executable: executable, arguments: ["worker-orphan"], heartbeatTimeout: 0.4) {
+        fatalError("Orphan supervisor must be gone; no lock callback expected")
+    })
+}
+if mode == "backpressure" {
+    for _ in 0..<100 { report(String(repeating: "x", count: 8190)) }
+    var calls = 0
+    let result = superviseGuard(executable: executable, arguments: ["worker-crash"], heartbeatTimeout: 0.4) { calls += 1 }
+    exit(result == 3 && calls == 1 ? 0 : 47)
+}
+let cases: [(String, Int32, Int)] = [
+    ("preflight", 2, 0), ("clean", 0, 0), ("expiry", 0, 0), ("zero", 3, 1), ("parent-term", 3, 1),
+    ("crash", 3, 1), ("hang", 3, 1), ("late", 3, 1),
+    ("cleanup-hang", 3, 1), ("stale", 3, 1), ("broken", 3, 1)
+]
+for (scenario, expected, expectedCalls) in cases {
+    var calls = 0
+    let started = ProcessInfo.processInfo.systemUptime
+    let result = superviseGuard(executable: executable, arguments: ["worker-" + scenario], heartbeatTimeout: 0.4) {
+        calls += 1
+        // Any still-unreaped child means fallback was called too early.
+        var status: Int32 = 0
+        precondition(waitpid(-1, &status, WNOHANG) == -1 && errno == ECHILD)
+    }
+    precondition(result == expected && calls == expectedCalls, "FAILED \(scenario): \(result), \(calls)")
+    precondition(ProcessInfo.processInfo.systemUptime - started < 4)
+    print("PASS: \(scenario)")
+}

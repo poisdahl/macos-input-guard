@@ -106,6 +106,12 @@ permission/layout diagnostics, and `observe 15` for passive event counts.
 
 ## Recovery and limits
 
+An experimental candidate adds a frosted instruction overlay (`--privacy`) and
+a temporary crash supervisor (`--lock-on-failure`). These are opt-in and still
+require supervised qualification; they are not in the installed 0.1.2 release.
+See [privacy and recovery testing](docs/privacy-and-recovery.md). A lock request
+is best effort and does not prove that macOS has locked.
+
 - Keep the printed PID. From a session you can control from another device
   (such as SSH), stop that process with `kill -TERM <PID>`.
   **Ctrl-C on the blocked keyboard is blocked too.**

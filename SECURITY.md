@@ -1,5 +1,12 @@
 # Security model
 
+The opt-in privacy/fallback candidate is described in
+[privacy and recovery](docs/privacy-and-recovery.md). Its supervisor attempts
+native locking after its worker ends; it does not provide fail-closed security.
+The default behavior and 0.1.2 release remain as described below. A frosted
+overlay is visual obscuration and does not guarantee unreadable screen content
+or protection against capture.
+
 Input Guard is intended to provide limited protection against casual
 unauthorized keyboard and mouse use while compatible computer-use automation
 continues. This includes deliberate attempts to use the Mac, not only

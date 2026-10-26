@@ -34,6 +34,13 @@ expect_usage_error trial 61
 expect_usage_error trial unlimited
 expect_usage_error observe unlimited
 expect_usage_error observe invalid
+expect_usage_error preview 0
+expect_usage_error preview 61
+expect_usage_error preview unlimited
+expect_usage_error preview --privacy
+expect_usage_error observe --lock-on-failure
+expect_usage_error lock --privacy --privacy
+expect_usage_error __worker trial 2 --lock-on-failure
 expect_usage_error set-code extra
 expect_usage_error forget-code extra
 expect_usage_error set-code
@@ -48,3 +55,4 @@ test -d "$test_output/install/input-guard"
 
 /usr/bin/codesign --verify --strict "$binary"
 echo 'PASS: CLI validation and signature; no input blocking or Keychain access.'
+"$project_dir/tests/supervisor.sh"
