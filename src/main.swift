@@ -128,7 +128,7 @@ let keyCharacters: [Int64: UInt8] = [
 let args = Array(CommandLine.arguments.dropFirst())
 let mode = args.first ?? "help"
 if mode == "--version" {
-    report("input-guard 0.1.0")
+    report("input-guard 0.1.1")
     exit(0)
 }
 if mode == "help" || mode == "--help" {
@@ -297,7 +297,7 @@ let timer = Timer(timeInterval: 1, repeats: true) { _ in
         CFRunLoopStop(CFRunLoopGetMain())
     } else if let seconds, elapsed >= Double(seconds) {
         CFRunLoopStop(CFRunLoopGetMain())
-    } else if blocking && (mode == "trial" || Int(elapsed) % 60 == 0) {
+    } else if mode == "trial" {
         let remaining = seconds.map { "\($0 - Int(elapsed))s" } ?? "unlimited"
         report("ACTIVE tap_enabled=true remaining=\(remaining) captured=\(counts.values.reduce(0,+))")
     }

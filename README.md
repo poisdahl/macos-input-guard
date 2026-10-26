@@ -89,6 +89,10 @@ input-guard lock          # Unlimited by default
 input-guard lock unlimited
 ```
 
+Ordinary timed and unlimited `lock` runs print no periodic `ACTIVE` lines.
+Startup messages, failures and the exit summary remain visible. The bounded
+`trial` mode still prints progress each second for compatibility testing.
+
 With no saved code, `lock` asks you to choose and confirm a temporary code.
 Use **8–64 lowercase letters and digits (`a-z`, `0-9`)**. Entry is hidden.
 Use a separate code, not your macOS login password.

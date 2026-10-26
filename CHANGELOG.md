@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1 — 2026-10-26
+
+Remove periodic `ACTIVE` output from ordinary timed and unlimited locks.
+Keep progress output in `trial` and preserve startup/failure/exit messages.
+Input filtering, code unlock and failure behavior are unchanged from 0.1.0.
+The experimental screen-lock fallback is not included in this release.
+
 ## 0.1.0 — 2026-10-26
 
 Initial public source release: session input filtering, typed-code unlock,
