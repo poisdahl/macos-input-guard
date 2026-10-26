@@ -3,19 +3,25 @@
 [![Build and smoke tests](https://github.com/poisdahl/macos-input-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/poisdahl/macos-input-guard/actions/workflows/ci.yml)
 [MIT licensed](LICENSE)
 
-A small command-line input guard for active computer-use workflows. Block
-ordinary local keyboard and pointer input while leaving the desktop available
-to compatible automation.
+A small command-line input guard intended to deter casual unauthorized use of
+a Mac's keyboard and mouse while leaving the desktop available to compatible
+computer-use automation.
 
 An **already-running native Codex computer-use session** continued during a
 supervised test on an Intel Mac. The guard does not log out, switch users,
 cover the screen or restart the agent session.
 
-**The desktop stays unlocked and visible. This is not a macOS security lock.**
-It is intended to prevent routine physical input from interfering with a
-computer-use task, not to protect confidential data from someone with physical
-access. It drops **all events captured at its session event tap**, which can
-include synthetic input. Compatibility depends on how an agent sends events.
+**Limited physical-access protection: the desktop stays unlocked and visible.**
+While its event tap is enabled and receiving the supported events, the guard
+blocks ordinary local typing and pointer input, providing a barrier to someone
+trying to use those controls without the code. It does not hide screen contents
+or provide the guarantees of the macOS lock screen. If the guard stops or loses
+interception, input can become available again **without a macOS password
+prompt**. See the [security model](SECURITY.md), including how restart protection
+depends on macOS settings.
+
+It drops **all events captured at its session event tap**, which can include
+synthetic input. Compatibility depends on how an agent sends events.
 
 Claude Code-based computer-use setups and other agents are **not yet tested**.
 Do not infer compatibility from the agent's name. See the

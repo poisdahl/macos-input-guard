@@ -1,9 +1,17 @@
 # Security model
 
-Input Guard is a local input-interference tool. It does not authenticate a
-macOS login, hide screen contents, encrypt a desktop session, or establish a
-boundary against someone with physical or same-user process access. Do not use
-it as a substitute for the macOS lock screen when protecting confidential data.
+Input Guard is intended to provide limited protection against casual
+unauthorized keyboard and mouse use while compatible computer-use automation
+continues. This includes deliberate attempts to use the Mac, not only
+accidental interference. Supported input is blocked while the event tap is
+enabled and receiving it.
+
+This is a user-session input filter, not a macOS authentication boundary. The
+session remains logged in and its screen contents remain visible. Bypass
+resistance against a determined person with physical access has not been
+established. Other processes running as the same user are not blocked. Use the
+macOS lock screen when access must remain blocked if this process stops or
+loses input interception.
 
 The guard operates at a Core Graphics session event tap. It swallows ordinary
 keyboard and pointer events seen there, including synthetic events. Events
@@ -15,6 +23,9 @@ by the code detector is not a cryptographic proof of origin.
 
 - A disabled tap, Secure Input or a changed layout causes the guard to stop.
   This intentionally **fails open**: local input becomes available again.
+  Version 0.1.0 does not invoke the macOS lock screen or require a macOS password
+  when that happens. Failure can therefore expose the still-unlocked desktop
+  without any reboot or knowledge of the guard's code.
 - Process termination, logout or restart removes the guard. There is no daemon
   or automatic restart.
 - `lock` is unlimited by default. Timed runs have both a run-loop deadline and
@@ -22,6 +33,19 @@ by the code detector is not a cryptographic proof of origin.
 - Only one blocking instance should run at a time. There is no singleton lock.
 - The guard does not prevent sleep or preserve an agent session across OS
   locking, logout, restart or a permission change.
+
+## Restart and normal macOS protection
+
+Restarting ends the running guard and computer-use session. With automatic
+login disabled, normal macOS startup presents the login window; restarting is
+not, by itself, a way to resume the unlocked account. Apple documents that
+[FileVault requires manual login and disables automatic login](https://support.apple.com/en-us/102316).
+If automatic login is enabled, that assumption does not hold. Input Guard does
+not inspect or change these settings.
+
+Authentication after restart is provided by macOS independently of this tool.
+It does not address failures in the existing logged-in session. Sleep and
+display-off password requirements are also separate macOS settings.
 
 ## Codes and diagnostics
 
