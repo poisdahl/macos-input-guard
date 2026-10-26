@@ -47,11 +47,22 @@ upward trackpad swipe appeared to open Mission Control. This is a coverage gap
 pending targeted reproduction, not evidence that all physical input is blocked.
 The owner also ran the candidate from Terminal with the saved Keychain code,
 confirmed blocking and quiet output, and unlocked with the code before the
-60-second deadline. Retained filtering and code unlock after fallback remain
-pending. Healthy `lock` mode has no periodic status output; `trial` does.
+60-second deadline. A later tool-launched `lock 180` received SIGTERM after
+eight seconds and reported an accepted lock request while retaining filtering.
+The owner then saw the “ChatGPT is Using Your Mac” curtain and could not pass
+its local-input takeover step. The exact test process was terminated with
+SIGKILL; the owner confirmed access was restored. **Fallback qualification
+failed. The candidate must remain uninstalled and unreleased.**
 
-**The changed runtime still requires supervised qualification before release or
-installation.** Verify `test-screen-lock`, normal macOS login, a bounded physical
+The curtain is consistent with Locked use relying on physical input to trigger
+manual takeover, which this filter can swallow. This is an inference, not proof
+of the underlying password-gate state. Tool versus Terminal launch context may
+also matter. Code-first recovery is untested and cannot cover faults that make
+keyboard events unavailable. AX acceptance does not authorize automatic filter
+removal. Healthy `lock` mode has no periodic output; `trial` does.
+
+**The failed fallback requires a design/recovery correction and fresh supervised
+qualification before release or installation.** Verify `test-screen-lock`, normal macOS login, a bounded physical
 input/code-unlock test, and a fault-triggered lock with remaining filtering.
 Repeat the same pre-existing native Codex session test. Historical successful
 physical tests documented in [compatibility](compatibility.md) apply to 0.1.0.

@@ -8,8 +8,8 @@ a Mac's keyboard and mouse while leaving the desktop available to compatible
 computer-use automation.
 
 An **already-running native Codex computer-use session** continued during a
-supervised **0.1.0** test on an Intel Mac. The **0.2.0 candidate still needs
-supervised runtime qualification**. The guard does not log out, switch users,
+supervised **0.1.0** test on an Intel Mac. **Do not install the 0.2.0 candidate:
+its retained-filter fallback failed a supervised test with active Locked use.** The guard does not log out, switch users,
 cover the screen or restart the agent session.
 
 **Limited physical-access protection: the desktop stays unlocked and visible.**

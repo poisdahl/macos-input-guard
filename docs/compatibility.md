@@ -30,10 +30,12 @@ lock, `test-screen-lock`. Verify the login screen yourself and unlock normally
 before starting the computer-use continuity test. The fallback currently needs
 an English macOS interface and Finder's default Lock Screen shortcut.
 
-During a later supervised timed `lock` test, TERM from another session should
-request macOS locking while keeping remaining filtering. Verify that normal
-macOS login is possible, then enter the guard code and release held inputs.
-A failed fallback is a failed test, even if ordinary keyboard blocking works.
+**The candidate fallback failed with active Locked use.** After TERM, retaining
+the filter prevented the owner from passing the “ChatGPT is Using Your Mac”
+curtain to reach login. Exact-process termination restored input. Do not install
+this candidate or assume that normal login works while its filter remains.
+A revised recovery procedure requires separate supervised qualification;
+code-first recovery has not been tested. See the [audit](security-audit.md).
 
 
 Use a harmless application and save unrelated work first. Do not begin with an
