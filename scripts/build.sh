@@ -21,7 +21,7 @@ fi
 mkdir -p "$build_dir"
 /usr/bin/swiftc -O -swift-version 5 -target "$architecture-apple-macosx13.0" \
     -module-cache-path "$build_dir/module-cache" \
-    "$project_dir/src/main.swift" -o "$build_dir/input-guard"
+    "$project_dir"/src/*.swift -o "$build_dir/input-guard"
 /usr/bin/codesign --force --sign - --identifier local.workstation.input-guard "$build_dir/input-guard"
 /usr/bin/codesign --verify --strict "$build_dir/input-guard"
 echo "Built $build_dir/input-guard ($architecture)."

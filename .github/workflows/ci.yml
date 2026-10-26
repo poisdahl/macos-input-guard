@@ -23,3 +23,5 @@ jobs:
         run: ./scripts/build.sh
       - name: Non-interactive smoke tests
         run: ./tests/smoke.sh
+      - name: Isolated security regressions
+        run: ./tests/security.sh

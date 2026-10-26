@@ -6,6 +6,7 @@ the non-interactive checks before opening a pull request:
 ```sh
 ./scripts/build.sh
 ./tests/smoke.sh
+./tests/security.sh
 ```
 
 Do not add an unattended lock, Keychain mutation or permission prompt to CI.

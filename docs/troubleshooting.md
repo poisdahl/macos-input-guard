@@ -20,22 +20,41 @@ Entry setting. Do not disable security settings blindly to make the tool work.
 The program waits up to three seconds after its own hidden-code or Keychain
 interaction for Secure Input to clear naturally. It does not call an API to
 disable that protection. If it remains active, the guard refuses to start.
-If it appears during a run, the guard exits with status 3 and input is released.
+If it appears during `lock`, the guard requests the normal macOS lock screen
+and retains remaining filtering. That request can fail; see [the security
+model](../SECURITY.md). `trial` and `observe` still exit on protection loss.
 
 ## The code does not unlock
 
 - Use the physical keyboard, the supported layout and lowercase letters/top-row
   digits. Turn off Shift and Caps Lock. Remote or remapped events may not match
   the hardware/system event metadata expected by the detector.
-- Type the complete code with no gap longer than 10 seconds. Release the last
-  key; no Enter is needed. Other keys or modifier changes reset partial entry.
+- Type the complete code with no gap longer than 10 seconds. Release all held
+  keys and mouse buttons; no Enter is needed. Other keys or modifier changes
+  reset partial entry. An incorrect complete entry is cleared automatically.
+- After five incorrect complete entries, wait 30 seconds before retrying.
+  Modifier keys and partial-entry resets do not bypass this cooldown.
 - A saved-code change affects the next run, not an already active guard.
-- Check that only one guard is running. A later blocking tap can hide unlock
-  input from an earlier process; stopping one copy may leave another active.
+- A second blocking instance is refused. Older versions do not participate in
+  this advisory lock; stop them before testing or updating.
 
 A timed run expires. For an unlimited run, terminate the printed PID from a
-separate terminal or SSH session: `kill -TERM <PID>`. Ctrl-C on the blocked
-keyboard will not reach the process.
+separate terminal or SSH session: `kill -TERM <PID>` requests macOS Lock Screen
+and retains remaining filtering. After normal macOS login, type the guard code
+and end this run. Emergency `kill -KILL <PID>` removes it **without locking**.
+Ctrl-C on the blocked keyboard will not reach the process.
+
+## Lock Screen fallback unavailable
+
+Run `input-guard check-lock`; this only checks menu availability. The fallback
+currently requires the running system Finder, an English macOS interface and
+the default Control-Command-Q Lock Screen menu shortcut. Other UI languages or
+changed shortcuts are refused rather than guessing another menu action.
+
+When ready to interrupt computer use, run `input-guard test-screen-lock` and
+verify the real macOS login screen appears. An accepted AX action is not itself
+proof of locking. After a fallback during `lock`, remaining filtering stays in
+place; log in normally, enter the guard code, and start a fresh guard if needed.
 
 ## Keychain prompts or errors
 
@@ -90,9 +109,10 @@ handling on that architecture.
 | `0` | Normal completion, expiry, accepted unlock code or successful management command. |
 | `1` | Permission, Keychain, layout preflight or event-tap setup failure. |
 | `2` | Invalid command/duration/code input, unsupported layout or missing interactive input for code entry. |
-| `3` | Runtime protection lost: Secure Input, layout change or disabled tap. Input is released. |
+| `3` | Protection loss occurred, or a screen-lock request was unavailable/rejected. See the messages; `lock` retains remaining filtering until code unlock or expiry. |
 
-Signal termination has the usual shell-specific signal status. Timed runs also
+In `lock`, TERM/HUP/INT request the fallback while the event loop is responsive.
+Uncaught signal termination has the usual shell-specific signal status. Timed runs also
 have a default-action SIGALRM backstop two seconds after their duration, so a
 stalled run loop cannot keep that timed process alive indefinitely. Unlimited
 runs have no such expiry timer.

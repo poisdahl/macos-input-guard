@@ -3,19 +3,27 @@
 [![Build and smoke tests](https://github.com/poisdahl/macos-input-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/poisdahl/macos-input-guard/actions/workflows/ci.yml)
 [MIT licensed](LICENSE)
 
-A small command-line input guard for active computer-use workflows. Block
-ordinary local keyboard and pointer input while leaving the desktop available
-to compatible automation.
+A small command-line input guard intended to deter casual unauthorized use of
+a Mac's keyboard and mouse while leaving the desktop available to compatible
+computer-use automation.
 
 An **already-running native Codex computer-use session** continued during a
-supervised test on an Intel Mac. The guard does not log out, switch users,
+supervised **0.1.0** test on an Intel Mac. The **0.2.0 candidate still needs
+supervised runtime qualification**. The guard does not log out, switch users,
 cover the screen or restart the agent session.
 
-**The desktop stays unlocked and visible. This is not a macOS security lock.**
-It is intended to prevent routine physical input from interfering with a
-computer-use task, not to protect confidential data from someone with physical
-access. It drops **all events captured at its session event tap**, which can
-include synthetic input. Compatibility depends on how an agent sends events.
+**Limited physical-access protection: the desktop stays unlocked and visible.**
+While the guard is active, it blocks ordinary local typing and pointer input,
+providing a barrier to someone trying to use those controls without the code.
+It does not hide screen contents or provide the guarantees of the macOS lock
+screen. Detected protection loss triggers a best-effort request for the normal
+macOS lock screen, even if that interrupts computer use. This is not an atomic
+handover: failures, bypasses or process termination can still expose input
+**without a password prompt**. See the [security model](SECURITY.md), including
+how restart protection depends on macOS settings.
+
+It drops **all events captured at its session event tap**, which can include
+synthetic input. Compatibility depends on how an agent sends events.
 
 Claude Code-based computer-use setups and other agents are **not yet tested**.
 Do not infer compatibility from the agent's name. See the
@@ -25,6 +33,9 @@ Do not infer compatibility from the agent's name. See the
 
 - macOS 13 or later and Apple Command Line Tools/Xcode with Swift 5.7 or later.
 - Accessibility permission for the executable or the application launching it.
+- For the macOS-lock fallback: the system Finder running, an **English macOS
+  interface**, and its default Control-Command-Q Lock Screen shortcut. Other
+  languages or changed shortcuts currently cause `lock` to refuse startup.
 - For code unlock: an Apple **US, ABC, Norwegian or Norwegian Extended QWERTY**
   keyboard layout. Other layouts are rejected by `lock`.
 
@@ -57,7 +68,18 @@ there is no Developer ID-signed or notarized binary download.
 If `~/.local/bin` is not on your `PATH`, use the full path shown below or add it
 to your own shell configuration.
 
-## First run: use a short trial
+## First run: verify the fallback, then use a short trial
+
+Before starting a computer-use session, check and test the macOS-lock request:
+
+```sh
+~/.local/bin/input-guard check-lock         # Read-only check
+~/.local/bin/input-guard test-screen-lock   # Requests the macOS lock screen
+```
+
+The second command can interrupt active work and computer use. Run it only when
+ready, verify the real macOS login screen appears, then unlock normally. An
+accepted Accessibility action alone is not proof that the screen locked.
 
 Start your computer-use session first, with a harmless target such as Calculator.
 Then run:
@@ -72,8 +94,8 @@ While it is active, confirm both that physical input is blocked and that the
 trial expires. If permission is missing, grant the intended application under
 **System Settings → Privacy & Security → Accessibility**, then retry.
 
-Complete this test before relying on an unlimited run. Run only one blocking
-instance at a time. Detailed steps are in [compatibility](docs/compatibility.md).
+Complete this test before relying on an unlimited run. A second blocking
+instance is rejected before code prompts. Detailed steps are in [compatibility](docs/compatibility.md).
 
 ## Lock and unlock
 
@@ -88,9 +110,11 @@ Use **8–64 lowercase letters and digits (`a-z`, `0-9`)**. Entry is hidden.
 Use a separate code, not your macOS login password.
 
 **To unlock, type the code anywhere on the physical keyboard, with Shift and
-Caps Lock off, then release the final key. Do not press Enter.** The code is
-consumed by the guard. Backspace corrects partial entry; other keys, modifiers
-or a gap longer than 10 seconds reset it. Validate code unlock with a timed
+Caps Lock off, then release all held keys and mouse buttons. Do not press
+Enter.** The code is consumed by the guard. Backspace corrects partial entry;
+other keys, modifiers or a gap longer than 10 seconds reset it. An incorrect
+complete entry is cleared. After five incorrect complete entries, code entry
+pauses for 30 seconds while input remains blocked. Choose a long, uncommon code. Validate code unlock with a timed
 run before using unlimited mode.
 
 ### Save a fixed code
@@ -119,6 +143,8 @@ item's access controls to avoid that prompt.
 | `trial [seconds]` | Block without a code for 1–60 seconds; default 30. |
 | `observe [seconds]` | Passively count event types and sources for 1–60 seconds; default 30. |
 | `probe` | Show Accessibility trust, Secure Input state and keyboard layout. |
+| `check-lock` | Read-only check for the system Finder Lock Screen menu action. |
+| `test-screen-lock` | Request the real macOS lock screen; interrupts computer use. |
 | `--help`, `--version` | Show usage or version. |
 
 Temporary codes are not saved. No codes are accepted through arguments or pipes,
@@ -127,11 +153,17 @@ which may contain local usernames; review diagnostic output before sharing it.
 
 ## Recovery and limits
 
-- The guard prints its PID. From another terminal or SSH session, stop that
-  exact process with `kill -TERM <PID>`. Process termination removes its tap.
-  **Ctrl-C typed on the blocked keyboard is also blocked.**
-- Secure Input, a changed keyboard layout, or a disabled event tap ends the
-  guard. It **fails open**: input becomes available again.
+- The guard prints its PID. From another terminal or SSH session,
+  `kill -TERM <PID>` requests the normal macOS lock screen. TERM/HUP/INT do not
+  simply remove a `lock` guard anymore. **Ctrl-C on the blocked keyboard is also
+  blocked.** Code unlock and explicit timed expiry still release normally.
+- Detected Secure Input, an unsupported layout, revoked Accessibility access or
+  a disabled event tap triggers the best-effort lock request. Remaining filtering
+  is retained even when the request is accepted. After logging back in, enter
+  the guard's code to finish; start a fresh run before relying on it again.
+- **A crash, SIGKILL or a stalled process can still remove or disable protection
+  without locking macOS.** Emergency `kill -KILL <PID>` forcibly releases the
+  filter without requesting a lock. There is no watchdog service.
 - Media keys, some system shortcuts and multitouch gestures are not
   comprehensively intercepted. Restarting the Mac ends the process.
 - There is no protection for screen contents and no guarantee against a
@@ -146,7 +178,8 @@ Read [the security model](SECURITY.md) and
 
 ```sh
 ./scripts/build.sh        # Builds .build/input-guard without installing
-./tests/smoke.sh          # Never blocks input or accesses Keychain
+./tests/smoke.sh          # CLI validation
+./tests/security.sh       # Isolated regressions; no input tap, screen lock or Keychain access
 ```
 
 CI runs these checks on Intel and Apple Silicon. A green build is not proof of
@@ -155,7 +188,8 @@ computer-use compatibility; that requires the manual test on your setup.
 Stop a running guard before reinstalling. To uninstall, first run
 `input-guard forget-code` if you also want to remove the saved code, then delete
 `~/.local/bin/input-guard`. Deleting the executable alone retains its Keychain
-item. Remove an unneeded Accessibility grant through System Settings.
+item. Blocking modes also use one advisory-lock file in the macOS per-user
+temporary directory; the OS releases the lock when the process exits. Remove an unneeded Accessibility grant through System Settings.
 
 ## License and credit
 
