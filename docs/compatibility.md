@@ -81,5 +81,6 @@ including types 29 and 30, plus two null events from the computer-use service.
 The owner confirmed Mission Control swipes and ordinary input were blocked and
 returned normally after expiry. The same pre-existing native Calculator binding
 computed `731 + 269 = 1000` and `17 × 19 = 323` before expiry, including after
-physical attempts. Saved-code unlock with this expanded mask is still awaiting
-the owner's separate Terminal test.
+physical attempts. In a separate Terminal-launched `lock 60` run, the owner
+confirmed that the Mission Control swipe remained blocked and the saved code
+unlocked the guard before the deadline.

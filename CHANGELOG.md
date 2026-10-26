@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.2 — unreleased
+## 0.1.2 — 2026-10-26
 
 Request all event types available at the session tap, including gesture events
 omitted by the earlier explicit list. A supervised Intel test blocked Mission
