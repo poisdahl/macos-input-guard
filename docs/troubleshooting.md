@@ -34,6 +34,11 @@ model](../SECURITY.md). `trial` and `observe` still exit on protection loss.
   reset partial entry. An incorrect complete entry is cleared automatically.
 - After five incorrect complete entries, wait 30 seconds before retrying.
   Modifier keys and partial-entry resets do not bypass this cooldown.
+- If key/button releases were missed during Secure Input or tap loss, the guard
+  may conservatively remember an input as held. Pressing and releasing that
+  key/button can clear it; otherwise use timed expiry or the explicit recovery
+  command below. A hardware-state snapshot is not treated as permission to
+  leak queued release events into the foreground application.
 - A saved-code change affects the next run, not an already active guard.
 - A second blocking instance is refused. Older versions do not participate in
   this advisory lock; stop them before testing or updating.

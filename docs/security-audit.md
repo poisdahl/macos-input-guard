@@ -49,6 +49,12 @@ recovery or before macOS locks. Secure Input can withhold keyboard events and
 lost Accessibility permission can also prevent the lock request. AX action
 acceptance does not confirm the screen's lock state.
 
+Missed key/button releases during Secure Input or tap loss can leave conservative
+held-input state after login. This may require pressing/releasing that input or
+explicit recovery; automatic state reconciliation has not been qualified and
+must not prematurely release queued events. Include this in the supervised
+fault/recovery test.
+
 The fallback currently supports only the system Finder's English **Lock Screen**
 menu with the default Control-Command-Q shortcut. After an accepted fallback,
 automatic requests are suppressed for that run to avoid relocking during login;
