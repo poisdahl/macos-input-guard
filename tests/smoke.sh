@@ -11,7 +11,7 @@ trap 'rm -rf "$test_output"' EXIT HUP INT TERM
 "$binary" >"$test_output/default-help"
 cmp "$test_output/help" "$test_output/default-help"
 grep -q 'Default: unlimited' "$test_output/help"
-test "$("$binary" --version)" = 'input-guard 0.1.1'
+test "$("$binary" --version)" = 'input-guard 0.1.2'
 
 expect_usage_error() {
     status=0

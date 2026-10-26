@@ -22,6 +22,10 @@ depends on macOS settings.
 
 It drops **all events captured at its session event tap**, which can include
 synthetic input. Compatibility depends on how an agent sends events.
+Version 0.1.2 requests all event types available at that tap, including gesture
+events omitted by earlier releases. Mission Control swipes were blocked in a
+supervised Intel Mac test while the same native Codex session continued. This
+does not establish coverage of every gesture or input path.
 
 Claude Code-based computer-use setups and other agents are **not yet tested**.
 Do not infer compatibility from the agent's name. See the

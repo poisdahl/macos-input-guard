@@ -128,7 +128,7 @@ let keyCharacters: [Int64: UInt8] = [
 let args = Array(CommandLine.arguments.dropFirst())
 let mode = args.first ?? "help"
 if mode == "--version" {
-    report("input-guard 0.1.1")
+    report("input-guard 0.1.2")
     exit(0)
 }
 if mode == "help" || mode == "--help" {
@@ -236,7 +236,7 @@ let eventTypes: [CGEventType] = [
     .rightMouseDown, .rightMouseUp, .mouseMoved, .leftMouseDragged,
     .rightMouseDragged, .scrollWheel, .otherMouseDown, .otherMouseUp, .otherMouseDragged
 ]
-let mask = eventTypes.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
+let requiredOrdinaryMask = eventTypes.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
 let callback: CGEventTapCallBack = { _, type, event, _ in
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         stopReason = "event tap disabled; protection lost"
@@ -276,7 +276,9 @@ let callback: CGEventTapCallBack = { _, type, event, _ in
     return blocking ? nil : Unmanaged.passUnretained(event)
 }
 guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap,
-                                options: blocking ? .defaultTap : .listenOnly, eventsOfInterest: mask,
+                                // Include system gesture events delivered to this tap, without
+                                // assuming AppKit gesture numbers map to Quartz event types.
+                                options: blocking ? .defaultTap : .listenOnly, eventsOfInterest: CGEventMask.max,
                                 callback: callback, userInfo: nil) else {
     report("Event tap creation failed; nothing is blocked.")
     exit(1)
@@ -284,6 +286,24 @@ guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEve
 let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
 CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
 CGEvent.tapEnable(tap: tap, enable: true)
+// macOS may remove unsupported or unauthorized bits from the requested mask.
+// Verify ordinary event-mask registration and report the actual mask for gesture trials.
+var tapCount: UInt32 = 0
+let countResult = CGGetEventTapList(0, nil, &tapCount)
+var tapList = [CGEventTapInformation](repeating: CGEventTapInformation(), count: Int(tapCount) + 16)
+var listed: UInt32 = 0
+let listResult = CGGetEventTapList(UInt32(tapList.count), &tapList, &listed)
+let own = tapList.prefix(min(Int(listed), tapList.count)).filter {
+    $0.tappingProcess == getpid() && $0.tapPoint == .cgSessionEventTap
+}
+guard countResult == .success, listResult == .success, own.count == 1,
+      own[0].enabled, own[0].eventsOfInterest & requiredOrdinaryMask == requiredOrdinaryMask,
+      CGEvent.tapIsEnabled(tap: tap), !IsSecureEventInputEnabled() else {
+    CGEvent.tapEnable(tap: tap, enable: false)
+    report("Ordinary event-mask registration could not be verified. Guard did not arm.")
+    exit(1)
+}
+let registeredMask = own[0].eventsOfInterest
 let start = ProcessInfo.processInfo.systemUptime
 // Default SIGALRM terminates even if the run loop stalls. Process death removes its tap.
 signal(SIGALRM, SIG_DFL)
@@ -304,7 +324,7 @@ let timer = Timer(timeInterval: 1, repeats: true) { _ in
 }
 RunLoop.main.add(timer, forMode: .common)
 let duration = seconds.map { "\($0)s" } ?? "unlimited"
-report("\(blocking ? "BLOCKING" : "OBSERVING") pid=\(getpid()) duration=\(duration) tap_enabled=\(CGEvent.tapIsEnabled(tap: tap)); \(unlimited ? "no automatic expiry" : "automatic expiry")")
+report("\(blocking ? "BLOCKING" : "OBSERVING") pid=\(getpid()) duration=\(duration) tap_enabled=\(CGEvent.tapIsEnabled(tap: tap)) registered_mask=0x\(String(registeredMask, radix: 16)); \(unlimited ? "no automatic expiry" : "automatic expiry")")
 if mode == "lock" { report("Type your code anywhere to release. No Enter needed. Emergency from another session: kill -TERM \(getpid())") }
 CFRunLoopRun()
 CGEvent.tapEnable(tap: tap, enable: false)

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.2 — unreleased
+
+Request all event types available at the session tap, including gesture events
+omitted by the earlier explicit list. A supervised Intel test blocked Mission
+Control swipes while the same native Codex session continued. Verify ordinary
+event-mask registration at startup and report the actual registered mask.
+
+Other gestures and input paths still require their own qualification. Failure
+behavior is unchanged; the experimental screen-lock fallback is not included.
+
 ## 0.1.1 — 2026-10-26
 
 Remove periodic `ACTIVE` output from ordinary timed and unlimited locks.

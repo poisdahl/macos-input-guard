@@ -13,17 +13,18 @@ established. Other processes running as the same user are not blocked. Use the
 macOS lock screen when access must remain blocked if this process stops or
 loses input interception.
 
-The guard operates at a Core Graphics session event tap. It swallows ordinary
-keyboard and pointer events seen there, including synthetic events. Events
-handled elsewhere can bypass it. Media keys, system shortcuts and multitouch
-gestures are not comprehensively covered. Hardware/system source metadata used
+The guard operates at a Core Graphics session event tap and requests all event
+types available there. It swallows captured events, including synthetic events.
+Version 0.1.2 blocked Mission Control swipes in a supervised Intel Mac test;
+events handled elsewhere can still bypass it. Media keys, system shortcuts and
+multitouch gestures are not comprehensively covered. Hardware/system source metadata used
 by the code detector is not a cryptographic proof of origin.
 
 ## Failure behavior
 
 - A disabled tap, Secure Input or a changed layout causes the guard to stop.
   This intentionally **fails open**: local input becomes available again.
-  Version 0.1.0 does not invoke the macOS lock screen or require a macOS password
+  The released guard does not invoke the macOS lock screen or require a macOS password
   when that happens. Failure can therefore expose the still-unlocked desktop
   without any reboot or knowledge of the guard's code.
 - Process termination, logout or restart removes the guard. There is no daemon
