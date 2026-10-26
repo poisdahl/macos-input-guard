@@ -39,8 +39,15 @@ A supervised follow-up on 2026-10-26 confirmed that `test-screen-lock` displayed
 the real macOS lock screen and the owner could log back in normally. The same
 pre-existing native Calculator binding then completed `731 + 269 = 1000` and
 `17 × 19 = 323` during a 30-second candidate trial, which expired normally.
-That trial captured no physical input, so it does not qualify physical blocking.
-Physical blocking, code unlock and retained filtering after fallback remain
+That first trial captured no physical input. A repeat 30-second trial captured
+1,109 hardware/system events; the owner confirmed ordinary local keyboard and
+mouse input was blocked and restored, while the same Calculator binding again
+completed both operations during interception. The owner also reported that an
+upward trackpad swipe appeared to open Mission Control. This is a coverage gap
+pending targeted reproduction, not evidence that all physical input is blocked.
+The owner also ran the candidate from Terminal with the saved Keychain code,
+confirmed blocking and quiet output, and unlocked with the code before the
+60-second deadline. Retained filtering and code unlock after fallback remain
 pending. Healthy `lock` mode has no periodic status output; `trial` does.
 
 **The changed runtime still requires supervised qualification before release or

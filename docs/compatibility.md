@@ -12,6 +12,7 @@ agent to another desktop, start a replacement session or unlock macOS.
 | Apple Silicon | Native build/CLI CI is configured. Physical blocking, code unlock and agent continuity need a manual check on this architecture. |
 | Claude Code-based computer-use setups | Not tested. The particular computer-use backend determines whether its input reaches this tap. |
 | Other desktop agents, remote desktop, remappers and assistive input | Not tested. Use a bounded trial before relying on the guard. |
+| System multitouch gestures | An owner reported that an upward trackpad swipe appeared to open Mission Control during the 0.2.0 candidate trial. Ordinary keyboard/mouse blocking does not cover this reported path; targeted reproduction is pending. |
 | Events delivered through the guarded session tap | Dropped while blocking, including synthetic events. There is no trusted-agent allowlist. |
 | Browser DOM/API automation | Not validated here. Success with DOM automation does not prove native mouse/keyboard compatibility. |
 

@@ -13,6 +13,10 @@ supervised runtime qualification**. The guard does not log out, switch users,
 cover the screen or restart the agent session.
 
 **Limited physical-access protection: the desktop stays unlocked and visible.**
+An owner-observed trackpad swipe appeared to open Mission Control during a
+blocked trial. Multitouch system gestures are not covered by the ordinary
+keyboard/mouse result; they can reveal other windows.
+
 While its event tap is enabled and receiving the supported events, the guard
 blocks ordinary local typing and pointer input, providing a barrier to someone
 trying to use those controls without the code. It does not hide screen contents
