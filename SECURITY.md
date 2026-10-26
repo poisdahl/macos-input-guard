@@ -2,10 +2,9 @@
 
 Input Guard is intended to provide limited protection against casual
 unauthorized keyboard and mouse use while compatible computer-use automation
-continues. The supported controls are blocked while the guard is active; a
-person who does not know the code cannot simply type or click through that
-filter. This purpose includes deliberate attempts to use the Mac, not only
-accidental interference.
+continues. This includes deliberate attempts to use the Mac, not only
+accidental interference. Supported input is blocked while the event tap is
+enabled and receiving it.
 
 This is a user-session input filter, not a macOS authentication boundary. The
 session remains logged in and its screen contents remain visible. Bypass
@@ -56,8 +55,10 @@ by the code detector is not a cryptographic proof of origin.
 - The guard does not prevent sleep, hide the display, or preserve an agent
   session across macOS locking, logout, restart or a permission change.
 
-The earlier 0.1.0 release immediately removed its filter on detected loss.
-The changes above reduce avoidable failure paths but do not eliminate the
+The earlier 0.1.0 release immediately removed its filter on detected loss,
+without invoking the macOS lock screen or requiring a macOS password. That
+could expose the still-unlocked desktop without a reboot or knowledge of the
+code. The changes above reduce avoidable failure paths but do not eliminate the
 underlying limitations. See the [audit notes](docs/security-audit.md).
 
 ## Restart and normal macOS protection

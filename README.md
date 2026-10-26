@@ -13,10 +13,11 @@ supervised runtime qualification**. The guard does not log out, switch users,
 cover the screen or restart the agent session.
 
 **Limited physical-access protection: the desktop stays unlocked and visible.**
-While the guard is active, it blocks ordinary local typing and pointer input,
-providing a barrier to someone trying to use those controls without the code.
-It does not hide screen contents or provide the guarantees of the macOS lock
-screen. Detected protection loss triggers a best-effort request for the normal
+While its event tap is enabled and receiving the supported events, the guard
+blocks ordinary local typing and pointer input, providing a barrier to someone
+trying to use those controls without the code. It does not hide screen contents
+or provide the guarantees of the macOS lock screen. Detected protection loss
+triggers a best-effort request for the normal
 macOS lock screen, even if that interrupts computer use. This is not an atomic
 handover: failures, bypasses or process termination can still expose input
 **without a password prompt**. See the [security model](SECURITY.md), including
