@@ -13,7 +13,7 @@ agent to another desktop, start a replacement session or unlock macOS.
 | Apple Silicon | Native build/CLI CI is configured. Physical blocking, code unlock and agent continuity need a manual check on this architecture. |
 | Claude Code-based computer-use setups | Not tested. The particular computer-use backend determines whether its input reaches this tap. |
 | Other desktop agents, remote desktop, remappers and assistive input | Not tested. Use a bounded trial before relying on the guard. |
-| Events delivered through the guarded session tap | Dropped while blocking, including synthetic events. There is no trusted-agent allowlist. |
+| Events delivered through the guarded session tap | Dropped while blocking, including synthetic events, except the local development build's four brightness controls. There is no trusted-agent allowlist. |
 | Browser DOM/API automation | Not validated here. Success with DOM automation does not prove native mouse/keyboard compatibility. |
 
 Version 0.2.0 also passed bounded overlay and crash/hang recovery tests on the
@@ -57,6 +57,25 @@ unlimited lock. Run only one blocking instance at a time.
 Repeat after significant macOS, agent, input-device or input-method changes.
 Do not infer support for media keys, global shortcuts or multitouch gestures
 from an ordinary typing-and-clicking test.
+
+## Brightness-controls development test
+
+This local change is not released. Use its candidate executable, not an installed
+0.2.0 binary. First run `observe 30`, pressing display brightness down/up and
+keyboard backlight down/up without other modifiers. Check that the four
+`brightness_control` categories appear; observation does not block input.
+
+Then run a bounded `trial 30 --privacy`: confirm the actual display and keyboard
+lighting changes, not only an on-screen indicator. Keep levels above zero and
+restore their previous levels with the opposite buttons. Check that ordinary
+typing, pointer input and Mission Control remain blocked, and that Option plus
+either brightness button does not open Settings. If Fn is needed for the media
+function, test that too. Also check a modifier pressed during a held brightness
+key: the release must end the adjustment without opening Settings. In a separate
+bounded trial, hold Option before arming, release it during the trial, then try
+brightness; Settings must not open (brightness may stay blocked if macOS still
+reports a modifier). Verify existing agent continuity, automatic expiry and
+saved-code unlock before relying on the candidate.
 
 ## Initial manual evidence
 

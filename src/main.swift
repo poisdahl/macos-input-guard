@@ -149,7 +149,7 @@ if isSupervisedWorker {
     catch { report("Inherited guard reservation unavailable."); exit(2) }
 }
 if mode == "--version" {
-    report("input-guard 0.2.0")
+    report("input-guard 0.2.0+brightness-dev")
     exit(0)
 }
 if mode == "help" || mode == "--help" {
@@ -173,6 +173,7 @@ if mode == "help" || mode == "--help" {
     No Enter is needed. Codes are never printed. Only set-code saves a code.
     Saved-code changes apply to future runs; an active guard keeps its current code.
     Supports Apple Norwegian, Norwegian Extended, US and ABC QWERTY layouts.
+    Unmodified display/keyboard brightness controls remain available; Fn is allowed.
     Timed runs expire automatically; unlimited has no expiry. Process exit removes the filter.
     This is an input guard, not the macOS security lock. Screen contents remain visible.
     """)
@@ -283,6 +284,8 @@ if mode == "lock" {
 }
 
 var counts: [String: Int] = [:]
+var brightnessCounts: [BrightnessControl: Int] = [:]
+var brightnessPassthrough = BrightnessPassthrough()
 var stopReason = "deadline"
 var exitStatus: Int32 = 0
 var localFallbackNeeded = false
@@ -307,6 +310,18 @@ let callback: CGEventTapCallBack = { _, type, event, _ in
     let pid = event.getIntegerValueField(.eventSourceUnixProcessID)
     let key = "\(type.rawValue):\(pid)"
     if mode != "lock", counts[key] != nil || counts.count < 256 { counts[key, default: 0] += 1 }
+    if let brightness = brightnessPassthrough.decision(for: event, currentFlags: {
+        CGEventSource.flagsState(.combinedSessionState).union(CGEventSource.flagsState(.hidSystemState))
+    }) {
+        if mode != "lock" { brightnessCounts[brightness.control, default: 0] += 1 }
+        // A lighting adjustment is not part of code entry. Never forward
+        // modifier changes or synthesize replacement input to make it work.
+        if blocking && brightness.release {
+            event.flags = CGEventFlags(rawValue: event.flags.rawValue & ~brightnessForbiddenFlags)
+        }
+        enteredCode.removeAll(keepingCapacity: true)
+        return Unmanaged.passUnretained(event)
+    }
     if mode == "lock", pid == 0 {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         if type == .keyUp, let finalKey = unlockingKey, keyCode == finalKey {
@@ -428,6 +443,11 @@ for (key, count) in (mode == "lock" ? [:] : counts).sorted(by: { $0.key < $1.key
     let parts = key.split(separator: ":")
     let pid = Int32(parts[1]) ?? 0
     report("event_type=\(parts[0]) source_pid=\(pid) count=\(count) source=\(pid == 0 ? "hardware/system" : processPath(pid))")
+}
+for control in BrightnessControl.allCases {
+    if let count = brightnessCounts[control] {
+        report("brightness_control=\(control.rawValue) \(blocking ? "passed" : "eligible")_events=\(count)")
+    }
 }
 report("ENDED reason=\(stopReason) elapsed=\(Int(ProcessInfo.processInfo.systemUptime - start))s; input filter removed")
 // A timeout or malformed message does not transfer fallback ownership. Only

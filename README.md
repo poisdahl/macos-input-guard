@@ -31,12 +31,19 @@ desktop unlocked, providing weaker protection than macOS locking.
 - **Not runtime-tested:** Apple Silicon, Claude Code-based setups, Jump Desktop
   and other agents or remote-desktop tools. CI checks builds and CLI behavior on
   Intel and Apple Silicon, not physical input handling.
-- All events captured by the filter are dropped, **including synthetic input**.
+- Captured events are dropped, **including synthetic input**, except the four
+  display/keyboard brightness controls described below.
   Compatibility depends on the input backend; not every gesture or input path
   is covered. Verify your setup with the short trial below.
 
 See [compatibility and manual verification](docs/compatibility.md) for evidence
 and the full test procedure.
+
+The local development build allows display-brightness up/down and keyboard-
+backlight up/down events while blocking. Use the lighting buttons without
+modifiers; Fn is allowed when needed. Ordinary F-keys and modifier shortcuts
+such as Option-brightness remain blocked. This change is not in release 0.2.0
+and still needs a physical test on the target keyboard.
 
 ## Install
 
