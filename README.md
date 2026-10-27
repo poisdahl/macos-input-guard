@@ -42,8 +42,10 @@ and the full test procedure.
 The local development build allows display-brightness up/down and keyboard-
 backlight up/down events while blocking. Use the lighting buttons without
 modifiers; Fn is allowed when needed. Ordinary F-keys and modifier shortcuts
-such as Option-brightness remain blocked. This change is not in release 0.2.0
-and still needs a physical test on the target keyboard.
+such as Option-brightness remain blocked. Release modifier keys before starting
+the guard: a modifier held during activation can keep lighting controls blocked
+for that run. This change is not in release 0.2.0; it has passed bounded physical
+trials on one Intel Mac. Verify it on your own keyboard before relying on it.
 
 ## Install
 

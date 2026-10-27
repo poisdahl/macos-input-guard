@@ -77,6 +77,33 @@ brightness; Settings must not open (brightness may stay blocked if macOS still
 reports a modifier). Verify existing agent continuity, automatic expiry and
 saved-code unlock before relying on the candidate.
 
+### Local candidate evidence
+
+On the same Intel Mac, the owner confirmed that both display brightness and
+keyboard backlight changed during a passive check and a subsequent 30-second
+`trial 30 --privacy`. During the blocking trial, ordinary typing, pointer/clicks
+and Mission Control stayed blocked; the overlay disappeared and normal input
+returned at expiry. The existing native Codex Calculator session continued
+working, calculating `731 + 269 = 1000` while the trial was active.
+
+The trial counted 937 events, including 63 passed lighting events across all four
+controls. This is not a count of blocked events.
+
+In a separate 30-second trial, the owner confirmed that Option plus the lighting
+buttons did not open Settings, adjustment stopped after releasing a held button
+with Option pressed during the hold, and normal input returned at expiry. The
+existing Codex Calculator session calculated `84 + 16 = 100` during that trial.
+
+With Option held before arming, the owner confirmed that Settings stayed closed
+after releasing Option and trying the lighting buttons. Lighting remained
+blocked until the trial expired, and normal input returned afterward. The tap
+recorded one modifier event and 92 lighting events, with no lighting passthrough.
+This is consistent with a retained modifier state; release modifier keys before
+starting the guard for normal lighting control.
+
+Saved-code unlock still needs candidate-specific physical verification. These
+observations do not establish support for other hardware.
+
 ## Initial manual evidence
 
 The initial Intel desktop test on 2026-10-26 counted 258 physical events during
