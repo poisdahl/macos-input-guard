@@ -101,8 +101,10 @@ recorded one modifier event and 92 lighting events, with no lighting passthrough
 This is consistent with a retained modifier state; release modifier keys before
 starting the guard for normal lighting control.
 
-Saved-code unlock still needs candidate-specific physical verification. These
-observations do not establish support for other hardware.
+After the candidate was rebuilt in a durable checkout, the owner completed
+`lock 60 --privacy` in Terminal and confirmed lighting control, saved-code unlock
+before expiry, overlay removal and restored normal input. These observations do
+not establish support for other hardware.
 
 ## Initial manual evidence
 
