@@ -21,6 +21,7 @@ The program waits up to three seconds after its own hidden-code or Keychain
 interaction for Secure Input to clear naturally. It does not call an API to
 disable that protection. If it remains active, the guard refuses to start.
 If it appears during a run, the guard exits with status 3 and input is released.
+With `--lock-on-failure`, the supervisor then attempts native macOS locking.
 
 ## The code does not unlock
 
@@ -30,12 +31,26 @@ If it appears during a run, the guard exits with status 3 and input is released.
 - Type the complete code with no gap longer than 10 seconds. Release the last
   key; no Enter is needed. Other keys or modifier changes reset partial entry.
 - A saved-code change affects the next run, not an already active guard.
-- Check that only one guard is running. A later blocking tap can hide unlock
-  input from an earlier process; stopping one copy may leave another active.
+- Version 0.2.0 refuses a second blocking instance. Older versions and other
+  input blockers do not share its reservation and can still interfere.
 
 A timed run expires. For an unlimited run, terminate the printed PID from a
-separate terminal or SSH session: `kill -TERM <PID>`. Ctrl-C on the blocked
-keyboard will not reach the process.
+session controllable from another device, such as SSH: `kill -TERM <PID>`. Ctrl-C on the blocked
+keyboard will not reach the process. With `--lock-on-failure`, termination
+requests native macOS locking; use the printed supervisor PID for recovery.
+
+## Overlay or native-lock fallback
+
+Both features require version 0.2.0+ and explicit options. `--privacy` uses a
+native material; Reduce transparency makes it opaque, and some text may remain
+readable even with transparency enabled. Whole-display capture may see the
+overlay. Test your actual agent capture path with a bounded trial.
+
+`--lock-on-failure` requires Accessibility access and the validated English
+Finder Lock Screen menu action. An accepted request is not proof of locking.
+If a Codex curtain appears after fallback, the guard's filter has been removed:
+try a physical key or click, then authenticate normally. See the detailed
+[limits and recovery tests](privacy-and-recovery.md).
 
 ## Keychain prompts or errors
 
@@ -90,9 +105,10 @@ handling on that architecture.
 | `0` | Normal completion, expiry, accepted unlock code or successful management command. |
 | `1` | Permission, Keychain, layout preflight or event-tap setup failure. |
 | `2` | Invalid command/duration/code input, unsupported layout or missing interactive input for code entry. |
-| `3` | Runtime protection lost: Secure Input, layout change or disabled tap. Input is released. |
+| `3` | Runtime protection lost or supervised worker failure. Input is released; supervised mode attempts native locking. |
 
-Signal termination has the usual shell-specific signal status. Timed runs also
-have a default-action SIGALRM backstop two seconds after their duration, so a
-stalled run loop cannot keep that timed process alive indefinitely. Unlimited
-runs have no such expiry timer.
+Unsupervised signal termination has the usual shell-specific signal status.
+Timed runs have a SIGALRM backstop in addition to the run-loop deadline. Cleanup
+has its own short backstop; unlimited runs have no duration limit. Supervised
+mode also monitors the event-loop heartbeat and handles detected failure with
+teardown followed by a best-effort native-lock request.

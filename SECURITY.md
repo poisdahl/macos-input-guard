@@ -1,9 +1,9 @@
 # Security model
 
-The opt-in privacy/fallback candidate is described in
-[privacy and recovery](docs/privacy-and-recovery.md). Its supervisor attempts
-native locking after its worker ends; it does not provide fail-closed security.
-The default behavior and 0.1.2 release remain as described below. A frosted
+The opt-in privacy/fallback options are described in
+[privacy and recovery](docs/privacy-and-recovery.md). The supervisor attempts
+native locking after an unexpected worker exit or detected failure, once its
+worker has ended; it does not provide fail-closed security. A frosted
 overlay is visual obscuration and does not guarantee unreadable screen content
 or protection against capture.
 
@@ -14,7 +14,7 @@ accidental interference. Supported input is blocked while the event tap is
 enabled and receiving it.
 
 This is a user-session input filter, not a macOS authentication boundary. The
-session remains logged in and its screen contents remain visible. Bypass
+session remains logged in; the optional overlay only obscures its contents. Bypass
 resistance against a determined person with physical access has not been
 established. Other processes running as the same user are not blocked. Use the
 macOS lock screen when access must remain blocked if this process stops or
@@ -29,16 +29,23 @@ by the code detector is not a cryptographic proof of origin.
 
 ## Failure behavior
 
-- A disabled tap, Secure Input or a changed layout causes the guard to stop.
+- Without `--lock-on-failure`, a disabled tap, Secure Input or a changed layout
+  causes the guard to stop.
   This intentionally **fails open**: local input becomes available again.
-  The released guard does not invoke the macOS lock screen or require a macOS password
+  This default mode does not invoke the macOS lock screen or require a macOS password
   when that happens. Failure can therefore expose the still-unlocked desktop
   without any reboot or knowledge of the guard's code.
-- Process termination, logout or restart removes the guard. There is no daemon
+- With `--lock-on-failure`, unexpected worker termination or a detected failure
+  triggers teardown followed by one best-effort macOS-lock request. Terminating
+  the supervisor also requests locking when recovery is possible. Accepted code
+  unlock and timed expiry release input without locking. See the detailed limits
+  in [privacy and recovery](docs/privacy-and-recovery.md).
+- Process termination, logout or restart removes the input filter. There is no daemon
   or automatic restart.
 - `lock` is unlimited by default. Timed runs have both a run-loop deadline and
   a SIGALRM backstop; unlimited runs have neither duration limit.
-- Only one blocking instance should run at a time. There is no singleton lock.
+- Only one blocking instance should run at a time. Version 0.2.0 enforces this
+  with a per-user instance reservation; older versions do not participate.
 - The guard does not prevent sleep or preserve an agent session across OS
   locking, logout, restart or a permission change.
 

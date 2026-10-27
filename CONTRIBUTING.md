@@ -8,6 +8,11 @@ the non-interactive checks before opening a pull request:
 ./tests/smoke.sh
 ```
 
+The tests require Python 3.9+; the installed executable does not. Supervisor
+tests use substitute workers and a fake lock callback, without blocking input
+or locking macOS. For overlay/fallback changes, also follow the supervised
+[qualification procedure](docs/privacy-and-recovery.md#qualification).
+
 Do not add an unattended lock, Keychain mutation or permission prompt to CI.
 Changes to event filtering, code entry or failure handling need a supervised
 bounded test using [the compatibility procedure](docs/compatibility.md).

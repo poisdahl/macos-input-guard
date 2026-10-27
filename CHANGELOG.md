@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.0 — 2026-10-27
+
+Add opt-in native screen frosting and unlock instructions (`--privacy`), an
+overlay-only `preview`, and a temporary failure supervisor (`--lock-on-failure`).
+The supervisor ends the input-filter worker before requesting the macOS lock,
+so physical input can dismiss a Codex curtain and reach login. Normal code
+unlock and timed expiry do not request locking. Default commands remain
+unsupervised and show no overlay.
+
+Enforce a per-user blocking-instance reservation and keep stalled terminal
+output from blocking the event loop. Add non-interactive fault-injection tests.
+On one Intel/macOS 15.8.1 setup, supervised tests covered the combined overlay,
+physical input blocking, existing native Codex continuity, saved-code unlock,
+worker crash/hang recovery and physical takeover after a Codex curtain.
+
+Screen frosting is not guaranteed to hide readable text. Native locking remains
+best effort, requires the validated English Finder Lock Screen action, and is
+not fail-closed protection. See [limits and evidence](docs/privacy-and-recovery.md).
+
 ## 0.1.2 — 2026-10-26
 
 Request all event types available at the session tap, including gesture events

@@ -7,8 +7,9 @@ A command-line tool that blocks local keyboard and mouse input while compatible
 computer-use automation continues. Unlock by typing a code, or use a timer.
 
 **Limited protection against casual unauthorized use:** the desktop stays
-unlocked and visible. If the guard stops or loses interception, input becomes
-available **without a macOS password prompt**. Use the macOS lock screen when
+unlocked. By default, failure releases input **without a macOS password prompt**.
+Optional screen frosting and best-effort crash-to-lock recovery are available.
+Use the macOS lock screen when
 you need stronger physical-access protection. Read the [security model](SECURITY.md).
 
 ## Why it exists
@@ -21,7 +22,7 @@ OpenAI also offers [Locked use](https://learn.chatgpt.com/docs/computer-use#lock
 for automation after macOS locks. Its documented workflow starts a task from a
 connected device after locking; it does not say that all previously started
 sessions are unsupported. Input Guard instead filters input while leaving the
-desktop unlocked and visible, providing weaker protection than macOS locking.
+desktop unlocked, providing weaker protection than macOS locking.
 
 ## Compatibility
 
@@ -106,11 +107,21 @@ permission/layout diagnostics, and `observe 15` for passive event counts.
 
 ## Recovery and limits
 
-An experimental candidate adds a frosted instruction overlay (`--privacy`) and
-a temporary crash supervisor (`--lock-on-failure`). These are opt-in and still
-require supervised qualification; they are not in the installed 0.1.2 release.
-See [privacy and recovery testing](docs/privacy-and-recovery.md). A lock request
-is best effort and does not prove that macOS has locked.
+For a frosted instruction overlay and a temporary crash supervisor (version 0.2.0+):
+
+```sh
+input-guard preview 20            # Overlay only; input remains usable
+input-guard lock 60 --privacy --lock-on-failure
+```
+
+The supervisor removes the input filter before requesting the macOS lock after
+a failure. Normal code unlock and timed expiry do not request locking.
+**With `--lock-on-failure`, terminating the guard also requests macOS locking.**
+Both options are opt-in: verify them with a timed run before omitting `60` for
+unlimited use. Frosting does not guarantee unreadable text, and native locking
+is best effort. See [limits and test results](docs/privacy-and-recovery.md).
+
+For the default mode, without `--lock-on-failure`:
 
 - Keep the printed PID. From a session you can control from another device
   (such as SSH), stop that process with `kill -TERM <PID>`.

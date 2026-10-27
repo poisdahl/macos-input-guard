@@ -16,6 +16,11 @@ agent to another desktop, start a replacement session or unlock macOS.
 | Events delivered through the guarded session tap | Dropped while blocking, including synthetic events. There is no trusted-agent allowlist. |
 | Browser DOM/API automation | Not validated here. Success with DOM automation does not prove native mouse/keyboard compatibility. |
 
+Version 0.2.0 also passed bounded overlay and crash/hang recovery tests on the
+same Intel/macOS 15.8.1 setup, including physical takeover after a Codex curtain.
+See [privacy and recovery evidence](privacy-and-recovery.md#test-results) for
+the exact scope and limitations.
+
 The tested Calculator actions still reached the application while filtering
 was active. This does not mean that every event from Codex bypasses the tap:
 the 0.1.2 trial also intercepted two null events from its computer-use service.

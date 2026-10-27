@@ -1,8 +1,9 @@
-# Experimental screen overlay and crash recovery
+# Screen overlay and crash recovery
 
-These options are under qualification. They are not included in the installed
-0.1.2 release and do not change the behavior of an ordinary `lock` invocation.
-Do not replace a working installation until the checks below pass on your Mac.
+These opt-in features require version 0.2.0 or later; check `input-guard --version`.
+An ordinary `lock` starts without either option. Build/install instructions are
+in the [README](../README.md). Validate the timed examples on your own setup
+before relying on an unlimited run.
 
 ## Frosted overlay
 
@@ -12,7 +13,10 @@ input-guard trial 20 --privacy     # Overlay and a timed input filter
 input-guard lock 60 --privacy      # Test code unlock with the overlay
 ```
 
-The overlay uses a nonactivating, click-through panel on each detected display.
+The overlay uses a native AppKit material in a nonactivating, click-through panel
+on each detected display. It does not capture images or require Screen Recording
+permission. macOS Reduce transparency makes the material opaque; the guard
+respects that preference rather than changing it.
 It shows “Input Guard is active. Type your Input Guard code to release. No Enter
 needed.” There is no password field or visible code-entry progress. Code entry
 still belongs to the input filter; this is not a macOS login screen.
@@ -54,7 +58,7 @@ Each path makes one request; it does not restart protection or repeatedly lock.
 
 Accepted code unlock and the explicitly selected timed expiry are normal
 releases. They do not request macOS locking. **Terminating a supervised guard
-is a fault and requests native locking**, unlike the plain 0.1.2 release path.
+is a fault and requests native locking**, unlike the default unsupervised mode.
 The supervisor reports both process IDs. The fallback currently requires the
 validated English “Lock Screen” menu item and Accessibility access; it refuses
 to start if that action cannot be found. Finder must remain available.
@@ -93,7 +97,27 @@ Only a person at the Mac can confirm the physical privacy and authentication
 checks. A successful AX request or agent screenshot alone is insufficient.
 Stop after any recovery failure; do not repeat unlimited tests.
 
-Automated `tests/supervisor.sh` uses test workers and a substitute lock callback.
+### Test results
+
+On one Intel Mac running macOS 15.8.1 with one display, the native overlay and
+30-second input trial passed: the owner confirmed that typing, pointer input and
+Mission Control were blocked, then returned to normal. An existing native Codex
+Calculator session continued to calculate and capture the app during the trial.
+The owner also confirmed that the saved code released the overlay and filter
+with `--lock-on-failure` enabled, without activating the macOS lock.
+
+Separate bounded worker-crash and worker-hang tests also passed. In each, the
+supervisor reported that its worker had ended before making one accepted
+native-lock request. The owner confirmed normal macOS login and restored input,
+with no second automatic lock. In an additional crash test, a screenshot request
+through the same existing Calculator binding succeeded after the native-lock
+request. The owner saw the Codex curtain and confirmed that dismissing it, normal
+macOS login and subsequent input all worked, without a second lock.
+These observations do not establish unreadable screen content, multi-display
+coverage or compatibility with other capture backends or agents.
+
+Automated `tests/supervisor.sh` requires Python 3.9+ and uses test workers and a
+substitute lock callback. The deployed executable does not require Python.
 It does not block input, read Keychain or invoke a real lock. It exercises normal
 completion, preflight failure, unexpected exits, crashes, stopped workers,
 stale/closed channels, delayed acknowledgements, stalled output, supervisor
