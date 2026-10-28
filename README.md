@@ -3,164 +3,131 @@
 [![Build and smoke tests](https://github.com/poisdahl/macos-input-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/poisdahl/macos-input-guard/actions/workflows/ci.yml)
 [MIT licensed](LICENSE)
 
-A command-line tool that blocks local keyboard and mouse input while compatible
-computer-use automation continues. Unlock by typing a code, or use a timer.
+Block local keyboard and mouse input while an **already-running, compatible
+computer-use session** continues. Release input by typing a code or letting a
+timer expire, without restarting the agent or switching desktops.
 
-**Limited protection against casual unauthorized use:** the desktop stays
-unlocked. By default, `lock` attempts the macOS lock screen after a failure;
-normal code unlock and timed expiry release input normally. Screen frosting is
-optional. Recovery is best effort, not a guarantee that macOS is locked.
-Use the macOS lock screen when
-you need stronger physical-access protection. Read the [security model](SECURITY.md).
+The desktop remains logged in and unlocked. This provides limited protection
+against casual unauthorized use; it is weaker than the macOS lock screen.
+Read the [security model](SECURITY.md) before relying on it.
 
-## Why it exists
-
-Input Guard was built to add a local input barrier to an **already-running
-computer-use session**, without logging out, switching desktops or restarting
-the agent.
-
-OpenAI also offers [Locked use](https://learn.chatgpt.com/docs/computer-use#locked-use)
-for automation after macOS locks. Its documented workflow starts a task from a
-connected device after locking; it does not say that all previously started
-sessions are unsupported. Input Guard instead filters input while leaving the
-desktop unlocked, providing weaker protection than macOS locking.
+**Development build:** this README describes unreleased
+`0.2.0+failure-default-dev`. Release 0.2.0 requires explicit `--lock-on-failure`
+and has no brightness passthrough. The lock examples work with both versions;
+check yours with `input-guard --version`.
 
 ## Compatibility
 
-- **Tested:** an existing native Codex session kept using Calculator while local
-  typing, pointer input and Mission Control swipes were blocked on an Intel Mac.
-- **Not runtime-tested:** Apple Silicon, Claude Code-based setups, Jump Desktop
-  and other agents or remote-desktop tools. CI checks builds and CLI behavior on
-  Intel and Apple Silicon, not physical input handling.
-- Captured events are dropped, **including synthetic input**, except the four
-  display/keyboard brightness controls described below.
-  Compatibility depends on the input backend; not every gesture or input path
-  is covered. Verify your setup with the short trial below.
+- An existing native Codex Calculator session continued during physical-input
+  tests on one Intel Mac running macOS 15.8.1. The new development build still
+  needs physical qualification.
+- Apple Silicon, Claude Code, Jump Desktop and other agent or remote-desktop
+  setups have not been physically qualified. CI checks builds and CLI behavior.
+- The filter drops captured events, **including synthetic input**, except the
+  lighting controls below. There is no
+  trusted-agent allowlist, and not every gesture or input path is covered.
 
-See [compatibility and manual verification](docs/compatibility.md) for evidence
-and the full test procedure.
-
-The local development build allows display-brightness up/down and keyboard-
-backlight up/down events while blocking. Use the lighting buttons without
-modifiers; Fn is allowed when needed. Ordinary F-keys and modifier shortcuts
-such as Option-brightness remain blocked. Release modifier keys before starting
-the guard: a modifier held during activation can keep lighting controls blocked
-for that run. This change is not in release 0.2.0; it has passed bounded physical
-trials on one Intel Mac. Verify it on your own keyboard before relying on it.
+The development build passes four lighting controls: display brightness up/down
+and keyboard backlight up/down, with no modifiers except Fn. Ordinary F-keys and
+modifier shortcuts remain blocked. Test your actual setup using the
+[compatibility procedure](docs/compatibility.md).
 
 ## Install
 
-Requires **macOS 13+**, Apple Command Line Tools/Xcode with **Swift 5.7+**, and
-Accessibility permission. Code unlock supports Apple **US, ABC, Norwegian and
-Norwegian Extended QWERTY** layouts; other layouts are rejected.
+Requires **macOS 13+**, Apple Command Line Tools or Xcode with **Swift 5.7+**,
+and Accessibility permission. Code unlock supports Apple **US, ABC, Norwegian
+and Norwegian Extended QWERTY** layouts.
 
 ```sh
-xcode-select --install    # If Apple's developer tools are not installed
+xcode-select --install    # If Apple's developer tools are missing
 git clone https://github.com/poisdahl/macos-input-guard.git
 cd macos-input-guard
 ./scripts/install.sh
 ```
 
-Installs a native, locally ad-hoc-signed build at `~/.local/bin/input-guard`.
-There is no notarized binary download, service or autostart. Add `~/.local/bin`
-to your `PATH`, or use the full executable path below; installation does not
-change your shell configuration.
+Installs a native, locally ad-hoc-signed executable at `~/.local/bin/input-guard`.
+There is no background service or autostart. Installation changes neither
+permissions nor shell configuration; add `~/.local/bin` to your `PATH` or use
+the full path.
 
-## Quick start
+## First run
 
-**Run only one blocking instance at a time.** Start your agent in a harmless app
-such as Calculator, then run:
+Run one blocking instance at a time. **Release all keys and buttons before
+starting.** Keep the existing agent working in a harmless app such as Calculator:
 
 ```sh
 ~/.local/bin/input-guard trial 15
 ```
 
-The trial blocks input for 15 seconds and releases it automatically. During that
-window, try the physical controls and confirm the **same existing agent session**
-still works. If needed, grant the executable or launching application permission
-under **System Settings → Privacy & Security → Accessibility**, then retry.
+Try physical typing, clicks and gestures during the trial, and confirm that the
+**same agent session** still works and input returns at expiry. If permission is
+missing, enable the intended executable or launching app under **System Settings
+→ Privacy & Security → Accessibility**, then retry.
 
-Next, test code unlock with a timed run:
+Next, test code unlock with a one-minute limit:
 
 ```sh
-input-guard lock 60       # Automatically releases after 60 seconds
+~/.local/bin/input-guard lock 60 --lock-on-failure
 ```
 
 Without a saved code, hidden prompts ask for a temporary code: **8–64 lowercase
-letters/digits (`a-z`, `0-9`)**. Do not reuse your macOS password.
+letters/digits (`a-z`, `0-9`)**. Codes are never accepted through arguments or
+pipes. Do not reuse your macOS password or share your code.
 
-**Unlock:** type the code anywhere on the physical keyboard with Shift and Caps
-Lock off, then release the final key. **No Enter.** Backspace corrects entry;
-other keys, modifiers or a gap over 10 seconds reset it.
+**To unlock:** type the code on the physical keyboard with Shift and Caps Lock
+off, then release the final key. **No Enter.** Backspace corrects entry; other
+keys, modifiers or a gap over 10 seconds reset partial entry.
 
-Only after both tests succeed, with recovery access from another device (such
-as a working SSH session):
+Use `input-guard set-code` to save or replace a code in the local macOS Keychain;
+`input-guard forget-code` removes it. Changes affect future runs. Rebuilds may prompt for
+Keychain access again; preserve its normal access controls.
 
-```sh
-input-guard lock          # Unlimited by default; no periodic ACTIVE output
-```
+Only after timed and code-unlock tests succeed, with recovery access from
+another device such as SSH, use `input-guard lock --lock-on-failure` for an
+unlimited run. Retest after saving or changing a code.
 
-To save or replace a reusable code in the local macOS Keychain:
+## Defaults, privacy and recovery
 
-```sh
-input-guard set-code      # Future locks use the saved code automatically
-```
+In the development build:
 
-Remove it with `input-guard forget-code`. Changes affect future runs. Rebuilds
-may trigger Keychain approval again; keep its access controls intact. Codes
-are never accepted through arguments or pipes.
+| Command or option | Behavior |
+| --- | --- |
+| `lock [seconds]` | Unlimited by default; up to 8 hours when timed. Failure recovery is enabled. |
+| `trial [seconds]` | Timed, code-free trial; no failure recovery unless `--lock-on-failure` is supplied. |
+| `--privacy` | Adds optional screen frosting to `lock` or `trial`. |
+| `--no-lock-on-failure` | Disables recovery: faults release input without macOS authentication. |
 
-Test the saved code with `input-guard lock 60` before an unlimited run.
+Failure recovery uses a temporary supervisor. After a fault, it removes the
+filter and overlay before attempting native macOS locking. **Terminating a
+supervised guard requests locking; normal code unlock and timed expiry do not.**
+For emergency termination from another session, use the printed supervisor PID.
+Ctrl-C on the blocked keyboard is blocked too.
 
-Use `input-guard --help` for all commands and duration limits, `probe` for
-permission/layout diagnostics, and `observe 15` for passive event counts.
+Fallback requires Accessibility access and the system Finder's English **Lock
+Screen** action. If unavailable, a supervised run refuses to start. Recovery is
+**best effort**: there is an input gap, requests can fail, and acceptance does
+not prove macOS is locked. Sleep, logout and restart can end automation.
 
-## Recovery and limits
+Preview frosting with `input-guard preview 20`; add `--privacy` to a bounded
+trial or lock to test it. Frosting does not guarantee unreadable content or
+prevent capture; whole-display screenshots may include it. See
+[privacy and recovery](docs/privacy-and-recovery.md) for limits and qualification.
 
-`lock` starts a temporary supervisor by default. It removes the input filter
-before attempting the macOS lock after a fault. Normal code unlock and timed
-expiry do not request locking. **Terminating the guard requests macOS locking.**
-Use the printed supervisor PID when terminating it from another session.
+## Help and removal
 
-Screen frosting is optional:
-
-```sh
-input-guard preview 20            # Overlay only; input remains usable
-input-guard lock 60 --privacy     # Supervised lock plus overlay
-```
-
-The fallback requires Accessibility access and Finder's English **Lock Screen**
-action. If unavailable, the guard refuses to start; it never silently disables
-failure locking. `input-guard probe` checks availability in the current launch
-context. Frosting does not guarantee unreadable text or compatibility with every
-capture backend. See [limits and test results](docs/privacy-and-recovery.md).
-
-`trial` has no failure locking unless `--lock-on-failure` is explicit. To opt out
-for a regular lock, use `--no-lock-on-failure`: failures then release input
-**without macOS authentication**. Ctrl-C on the blocked keyboard is blocked too;
-keep a way to terminate the printed PID from another device, such as SSH.
-
-The guard does not prevent sleep, logout or restart, or preserve automation
-across them. Restart/login protection depends on your macOS settings.
-
-For code-entry, permissions or Keychain problems, see [troubleshooting](docs/troubleshooting.md).
-Before extended unattended use, read the [security model](SECURITY.md).
-
-## Help, development and removal
-
-Report bugs through [Issues](https://github.com/poisdahl/macos-input-guard/issues);
-use [private vulnerability reporting](https://github.com/poisdahl/macos-input-guard/security/advisories/new)
-for security-sensitive reports. Never share codes; diagnostic paths can contain
-usernames. See [Contributing](CONTRIBUTING.md) for build/test commands and report
-requirements. Maintained by [@poisdahl](https://github.com/poisdahl).
+Use `input-guard --help` for commands, `probe` for launch-context diagnostics,
+and `observe 15` for passive event counts. See [troubleshooting](docs/troubleshooting.md),
+[Contributing](CONTRIBUTING.md) and [Issues](https://github.com/poisdahl/macos-input-guard/issues).
+Report vulnerabilities [privately](https://github.com/poisdahl/macos-input-guard/security/advisories/new);
+remove personal information from diagnostics before sharing.
 
 Stop the guard before updating or uninstalling. To uninstall, optionally run
 `input-guard forget-code`, delete `~/.local/bin/input-guard`, and remove its
-unneeded Accessibility grant. Deleting the executable alone keeps the saved code.
+unneeded Accessibility grant. Deleting the executable alone retains the saved code.
 
 ## License and credit
 
-[MIT](LICENSE). The session event-tap foundation is adapted from
-[mac-inputlock](https://github.com/choiyounggi/mac-inputlock) by Younggi Choi;
-its copyright and license are retained in [third-party notices](THIRD_PARTY_NOTICES.md).
+[MIT](LICENSE). The session event-tap foundation is adapted from Younggi Choi's
+[mac-inputlock](https://github.com/choiyounggi/mac-inputlock). See the retained
+copyright and license in [third-party notices](THIRD_PARTY_NOTICES.md) and [LICENSE](LICENSE).
 Independent project; not affiliated with OpenAI, Anthropic or Apple.
