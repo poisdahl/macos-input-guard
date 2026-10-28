@@ -22,11 +22,11 @@ loses input interception.
 
 The guard operates at a Core Graphics session event tap and requests all event
 types available there. It swallows captured events, including synthetic events,
-except the local development build's narrow brightness-control allowlist:
+except the narrow brightness-control allowlist:
 display up/down and keyboard-backlight up/down system events, without modifiers
 other than Fn. Ordinary function keys, other system events and modifier shortcuts
 are not allowed. The exception permits anyone at the keyboard to adjust lighting,
-including making the display dark, and needs physical qualification. Remappers
+including making the display dark, and needs qualification for your hardware. Remappers
 or other same-user software could give these events additional actions; this
 filter cannot enforce how downstream software interprets an allowed event.
 Version 0.1.2 blocked Mission Control swipes in a supervised Intel Mac test;

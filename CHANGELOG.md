@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-10-28
 
 Make failure recovery the default for `lock`, with explicit
 `--no-lock-on-failure` opt-out. Keep `trial` unsupervised and privacy opt-in.
@@ -10,6 +10,9 @@ active guards immediately before installation.
 
 Allow unmodified display/keyboard brightness up/down events, with tracked
 press/release pairing and modifier-shortcut rejection.
+
+Document bounded Claude Desktop Code/Background compatibility tests, native
+lock comparisons, and the general input-guard use case. Privacy remains opt-in.
 
 ## 0.2.0 — 2026-10-27
 

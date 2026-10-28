@@ -11,14 +11,14 @@ agent to another desktop, start a replacement session or unlock macOS.
 | Native Codex computer use on an Intel Mac | A pre-existing Calculator binding continued clicking and typing during a supervised physical-input trial. |
 | Mission Control trackpad swipe on the tested Intel Mac | Blocked by the 0.1.2 all-events filter; the owner confirmed normal input returned after the 30-second trial. Other gestures and setups need their own test. |
 | Apple Silicon | Native build/CLI CI is configured. Physical blocking, code unlock and agent continuity need a manual check on this architecture. |
-| Claude Code-based computer-use setups | Not tested. The particular computer-use backend determines whether its input reaches this tap. |
+| Claude Desktop 4.29.0, Code tab, Background, Haiku 5.5 Low on Intel/macOS 15.8.1 | Existing Calculator session continued during a full 60-second trial with the privacy overlay and physical input attempts. See the comparison below. Claude CLI and Full control with Input Guard remain untested. |
 | Other desktop agents, remote desktop, remappers and assistive input | Not tested. Use a bounded trial before relying on the guard. |
-| Events delivered through the guarded session tap | Dropped while blocking, including synthetic events, except the local development build's four brightness controls. There is no trusted-agent allowlist. |
+| Events delivered through the guarded session tap | Dropped while blocking, including synthetic events, except the four brightness controls in 0.3.0. There is no trusted-agent allowlist. |
 | Browser DOM/API automation | Not validated here. Success with DOM automation does not prove native mouse/keyboard compatibility. |
 
 Version 0.2.0 also passed bounded overlay and crash/hang recovery tests on the
 same Intel/macOS 15.8.1 setup, including physical takeover after a Codex curtain.
-See [privacy and recovery evidence](privacy-and-recovery.md#test-results) for
+See [privacy and recovery evidence](privacy-and-recovery.md#test-results-in-020) for
 the exact scope and limitations.
 
 The tested Calculator actions still reached the application while filtering
@@ -27,6 +27,47 @@ the 0.1.2 trial also intercepted two null events from its computer-use service.
 Compatibility is not guaranteed for every Codex feature, release or backend. A physical
 input detector elsewhere in another agent could still pause that agent even
 when its target application receives no physical input.
+
+## Claude and native macOS locking — 2026-10-28
+
+On one Intel Mac running macOS 15.8.1, using Claude Desktop 4.29.0's Code tab,
+Background mode and Haiku 5.5 Low, an existing Calculator session continued
+through Input Guard `0.2.0+failure-default-dev` (the 0.3.0 candidate).
+
+A 60-second `trial --privacy` intercepted 1,535 hardware/system events. The owner
+confirmed that typing, pointer/clicks and Mission Control stayed blocked
+throughout, then normal input returned and the overlay disappeared. Claude's
+native background tools calculated `683 - 247 = 436` near the start and
+`29 × 17 = 493` later in the minute. Both fresh screenshots/results completed
+before guard expiry. The guard reported normal timed completion and no Secure
+Input activation. Codex made no computer-use calls during the trial.
+
+A preceding 60-second repeat also completed normally with two native Calculator
+results, but recorded no physical events; it verifies automation continuity, not
+a second physical-blocking qualification. An earlier attempt ended after 16 seconds with a protection-lost
+message; the owner reported a system password dialog. The cause was not
+isolated. This is not evidence that such interruptions are harmless: default
+`lock` attempts native locking after a fault; unsupervised `trial` releases input.
+
+For comparison, with Input Guard off and Codex idle during the locked interval:
+
+| Claude path | Native macOS-lock result |
+| --- | --- |
+| Same Background session, two separate tests | First Calculator click rejected with “The screen is locked”; no calculation entered. In the repeat, app screenshot capture still worked. |
+| Same session switched to Full control | Unlocked baseline worked; while locked, full-screen capture returned nil and no clicks ran. Capture worked again after owner authentication without permission changes. The generic capture error does not establish its unique cause. Background mode was restored afterward. |
+
+The owner confirmed the instructed locked intervals and normal authentication.
+These tests establish the observed Calculator behavior, not universal agent
+support or protection against determined physical access. Claude Full control
+with Input Guard, Claude CLI, other apps/backends, and Claude-specific recovery
+from guard faults remain unqualified. Code unlock and recovery have separate
+earlier tests; these Claude trials did not repeat them.
+
+Native macOS locking also worked in separate native Codex Calculator tests on
+this Mac, both for an existing binding and a fresh binding after locking. An
+uninterrupted run through one existing binding completed seven calculations
+while the owner confirmed the Mac stayed locked and authentication remained
+required. Input Guard may therefore be unnecessary for that Codex setup.
 
 ## Manual test procedure
 
@@ -59,10 +100,9 @@ Repeat after significant macOS, agent, input-device or input-method changes.
 Do not infer support for media keys, global shortcuts or multitouch gestures
 from an ordinary typing-and-clicking test.
 
-## Brightness-controls development test
+## Brightness-controls test
 
-This local change is not released. Use its candidate executable, not an installed
-0.2.0 binary. First run `observe 30`, pressing display brightness down/up and
+Available since 0.3.0. First run `observe 30`, pressing display brightness down/up and
 keyboard backlight down/up without other modifiers. Check that the four
 `brightness_control` categories appear; observation does not block input.
 
@@ -106,7 +146,8 @@ After the candidate was rebuilt in a durable checkout, the owner completed
 `lock 60 --privacy` in Terminal and confirmed lighting control, saved-code unlock
 before expiry, overlay removal and restored normal input. These observations do
 not establish support for other hardware or physically qualify the later
-default-failure-locking development build.
+default-failure-locking candidate. The [October 28 tests above](#claude-and-native-macos-locking--2026-10-28)
+qualify Claude Background continuity and timed expiry, not crash recovery.
 
 ## Initial manual evidence
 

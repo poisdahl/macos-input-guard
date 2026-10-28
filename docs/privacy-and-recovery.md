@@ -1,7 +1,7 @@
 # Screen overlay and crash recovery
 
-In this development build, `lock` enables failure recovery by default; privacy
-remains opt-in. Release 0.2.0 requires explicit `--lock-on-failure`. Check
+Since 0.3.0, `lock` enables failure recovery by default; privacy remains opt-in.
+Release 0.2.0 requires explicit `--lock-on-failure`. Check
 `input-guard --version` and validate timed runs before unlimited use. Installation
 is described in the [README](../README.md).
 
@@ -17,7 +17,7 @@ The overlay uses a native AppKit material in a nonactivating, click-through pane
 on each detected display. It does not capture images or require Screen Recording
 permission. macOS Reduce transparency makes the material opaque; the guard
 respects that preference rather than changing it.
-It shows “Input Guard is active. Type your Input Guard code to release. No Enter
+For `lock`, it shows “Input Guard is active. Type your Input Guard code to release. No Enter
 needed.” There is no password field or visible code-entry progress. Code entry
 still belongs to the input filter; this is not a macOS login screen.
 
@@ -106,7 +106,7 @@ Only a person at the Mac can confirm the physical privacy and authentication
 checks. A successful AX request or agent screenshot alone is insufficient.
 Stop after any recovery failure; do not repeat unlimited tests.
 
-### Test results
+### Test results in 0.2.0
 
 On one Intel Mac running macOS 15.8.1 with one display, the native overlay and
 30-second input trial passed: the owner confirmed that typing, pointer input and
@@ -124,6 +124,11 @@ request. The owner saw the Codex curtain and confirmed that dismissing it, norma
 macOS login and subsequent input all worked, without a second lock.
 These observations do not establish unreadable screen content, multi-display
 coverage or compatibility with other capture backends or agents.
+
+These physical crash/hang and code-unlock observations apply to 0.2.0. The
+0.3.0 candidate's default-failure recovery changes passed automated tests but
+were not physically requalified on this candidate. Its later Claude trials qualify
+[normal input blocking and timed expiry](compatibility.md#claude-and-native-macos-locking--2026-10-28).
 
 Automated `tests/supervisor.sh` requires Python 3.9+ and uses test workers and a
 substitute lock callback. The deployed executable does not require Python.

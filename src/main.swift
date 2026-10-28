@@ -151,7 +151,7 @@ if isSupervisedWorker {
     catch { report("Inherited guard reservation unavailable."); exit(2) }
 }
 if mode == "--version" {
-    report("input-guard 0.2.0+failure-default-dev")
+    report("input-guard 0.3.0")
     exit(0)
 }
 if mode == "help" || mode == "--help" {

@@ -42,7 +42,7 @@ locking on termination; use the printed supervisor PID for recovery.
 
 ## Overlay or native-lock fallback
 
-This development build supervises `lock` by default; release 0.2.0 needs
+Since 0.3.0, `lock` is supervised by default; release 0.2.0 needs
 explicit `--lock-on-failure`. Privacy always needs `--privacy`, which uses a
 native material; Reduce transparency makes it opaque, and some text may remain
 readable even with transparency enabled. Whole-display capture may see the
