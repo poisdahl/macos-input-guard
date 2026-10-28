@@ -16,17 +16,7 @@ replace authentication. See the [security model](SECURITY.md).
 A macOS lock can stop desktop automation. Input Guard lets compatible automation
 continue in the existing session while filtering local input.
 
-**Tested with Claude Desktop 4.29.0, Code tab, Background mode, Haiku 5.5 Low**
-on one Intel Mac running macOS 15.8.1. The same existing session operated
-Calculator and captured clear results while local typing, pointer/clicks and
-Mission Control swipes were blocked, including with `--privacy`. A separate
-native-macOS-lock test blocked Claude's clicks.
-
-Our native Codex Calculator tests also passed, but native macOS locking worked
-in separate tests, making Input Guard potentially unnecessary for that setup.
-Other Claude modes, the CLI, agents, remote desktop and Apple Silicon require
-their own trial. Captured synthetic input is blocked; there is no trusted-agent
-allowlist. See [compatibility and test evidence](docs/compatibility.md).
+Tested and working with **Claude Desktop 4.29.0**.
 
 ## Install
 
@@ -45,26 +35,19 @@ Installs a native, ad-hoc-signed executable at `~/.local/bin/input-guard`, with 
 service or autostart. Add `~/.local/bin` to your `PATH` or use the full path;
 installation does not change permissions or shell configuration.
 
-## Start with a timed trial
+## Use
 
 Run one blocking instance at a time. **Release all keys and buttons before
-starting.** For computer use, first start the actual agent session in a harmless
-app such as Calculator, then run:
+starting.** For computer use, start the agent session first, then run:
 
 ```sh
-~/.local/bin/input-guard trial 30 --privacy
+~/.local/bin/input-guard lock
 ```
 
-Try physical typing, clicks and gestures. Confirm the **same agent session**
-still works and input returns at expiry. If permission is missing, enable the
-intended executable or launching app under **System Settings → Privacy &
-Security → Accessibility**, then retry. Permissions can differ by launch context.
-
-Next, test code unlock with a one-minute limit:
-
-```sh
-~/.local/bin/input-guard lock 60
-```
+The default lock has no time limit. Type the unlock code to release input.
+If permission is missing, enable the intended executable or launching app under
+**System Settings → Privacy & Security → Accessibility**, then retry.
+Permissions can differ by launch context.
 
 Without a saved code, hidden prompts ask for a temporary code: **8–64 lowercase
 letters/digits (`a-z`, `0-9`)**. Codes are never accepted through arguments or
@@ -76,23 +59,21 @@ keys, modifiers or a gap over 10 seconds reset partial entry.
 
 ```sh
 input-guard set-code       # Save or replace a code in the local macOS Keychain
-input-guard lock           # Unlimited; use only after timed/code-unlock tests
+input-guard lock 3600      # Release automatically after one hour
 input-guard lock --privacy # Unlimited with optional screen frosting
 ```
 
 Keep recovery access from another device, such as SSH, for unlimited use.
-`forget-code` removes the saved code; changes affect future runs. Retest after
-saving/changing a code. Rebuilds may prompt for Keychain access again; preserve
-its normal access controls.
+`forget-code` removes the saved code; changes affect future runs. Rebuilds may
+prompt for Keychain access again; preserve its normal access controls.
 
 ## Controls and recovery
 
 | Command or option | Behavior |
 | --- | --- |
 | `lock [seconds]` | Unlimited by default; timed runs up to 8 hours. Failure recovery enabled. |
-| `trial [seconds]` | Code-free trial, 1–60 seconds (default 30); no failure recovery by default. |
-| `--privacy` | Optional screen frosting for `lock` or `trial`. |
-| `--lock-on-failure` | Explicitly enables recovery, including for `trial`. |
+| `--privacy` | Optional screen frosting while input is blocked. |
+| `--lock-on-failure` | Explicitly enables failure recovery, already the default for `lock`. |
 | `--no-lock-on-failure` | Opts out: faults release input without macOS authentication. |
 | `preview 20` | Overlay only; input remains usable. |
 
