@@ -1,9 +1,9 @@
 # Screen overlay and crash recovery
 
-These opt-in features require version 0.2.0 or later; check `input-guard --version`.
-An ordinary `lock` starts without either option. Build/install instructions are
-in the [README](../README.md). Validate the timed examples on your own setup
-before relying on an unlimited run.
+In this development build, `lock` enables failure recovery by default; privacy
+remains opt-in. Release 0.2.0 requires explicit `--lock-on-failure`. Check
+`input-guard --version` and validate timed runs before unlimited use. Installation
+is described in the [README](../README.md).
 
 ## Frosted overlay
 
@@ -35,18 +35,20 @@ native screenshot/input compatibility. Do not depend on capture-exclusion APIs.
 ## Native lock fallback
 
 ```sh
-input-guard lock 60 --privacy --lock-on-failure
+input-guard lock 60 --privacy
 ```
 
-`--lock-on-failure` starts one temporary supervisor and one guard worker. There
+`lock` starts one temporary supervisor and one guard worker. There
 is no persistent daemon, login item or automatic restart. Only the worker reads
 the code and owns the event filter and overlay. Their private inherited control
 channel carries lifecycle messages, never the code. Both processes retain the
 same blocking-instance reservation until their work ends.
 
 After preflight/code entry, the supervisor arms before the event filter is
-created. Cancellation or refusal before arming does not request locking. A
-setup failure **after** arming conservatively requests locking, even if startup
+created. Cancellation or refusal during code/preflight checks does not request locking.
+After an arming attempt, an orphaned worker conservatively requests locking on
+a controlled failure, including a lost acknowledgement. A setup failure
+**after** arming also requests locking, even if startup
 never reached the `BLOCKING` message.
 
 On an unexpected worker exit (including SIGKILL), lost interception, or a stale
@@ -54,11 +56,15 @@ event-loop heartbeat, the supervisor terminates and reaps its own worker.
 **Only after the worker's filter and windows are gone** does it request the
 system Finder's Lock Screen action. A responsive worker can also detect that
 its supervisor has died, remove its own filter/windows, and request locking.
+Controlled local faults and post-arm setup failures also check parent death
+after teardown, so they do not skip recovery while exiting as an orphan.
 Each path makes one request; it does not restart protection or repeatedly lock.
 
 Accepted code unlock and the explicitly selected timed expiry are normal
 releases. They do not request macOS locking. **Terminating a supervised guard
-is a fault and requests native locking**, unlike the default unsupervised mode.
+is a fault and requests native locking**. `--no-lock-on-failure` explicitly
+disables supervision; failures then release input without macOS authentication.
+`trial` remains unsupervised unless `--lock-on-failure` is explicit.
 The supervisor reports both process IDs. The fallback currently requires the
 validated English “Lock Screen” menu item and Accessibility access; it refuses
 to start if that action cannot be found. Finder must remain available.
@@ -70,6 +76,9 @@ This is **best effort, not fail-closed security**:
   output explicitly reports “lock state unconfirmed.”
 - The request can fail, time out or be interrupted. Both processes being
   killed/frozen, OS failure or deliberate same-user interference are not covered.
+- A supervisor dying immediately after the worker checks ownership can still
+  escape detection during shutdown. This is not a guarantee of recovery from
+  simultaneous failures.
 - There is no automatic retry after a failed request. Normal macOS protection
   and restart/login settings remain independent of Input Guard.
 - Codex Locked use may show its own curtain while temporarily using the Mac.
@@ -86,7 +95,7 @@ unrelated work before supervised tests.
    target-app screenshot and result through the same agent while it is active.
 2. Run `trial 20 --privacy`; verify physical typing, pointer and Mission Control
    are blocked, the same agent works, and the overlay/filter disappear on time.
-3. Run `lock 60 --privacy --lock-on-failure` yourself, handle any Keychain prompt,
+3. Run `lock 60 --privacy` yourself, handle any Keychain prompt,
    and verify the saved code releases everything before expiry without locking.
 4. Coordinate separate bounded worker-crash and worker-hang tests. Confirm the
    worker has ended before the native-lock request. If a Codex curtain appears,

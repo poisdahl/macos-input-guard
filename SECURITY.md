@@ -1,6 +1,6 @@
 # Security model
 
-The opt-in privacy/fallback options are described in
+The optional privacy overlay and default failure recovery for `lock` are described in
 [privacy and recovery](docs/privacy-and-recovery.md). The supervisor attempts
 native locking after an unexpected worker exit or detected failure, once its
 worker has ended; it does not provide fail-closed security. A frosted
@@ -36,17 +36,20 @@ by the code detector is not a cryptographic proof of origin.
 
 ## Failure behavior
 
-- Without `--lock-on-failure`, a disabled tap, Secure Input or a changed layout
-  causes the guard to stop.
-  This intentionally **fails open**: local input becomes available again.
-  This default mode does not invoke the macOS lock screen or require a macOS password
-  when that happens. Failure can therefore expose the still-unlocked desktop
-  without any reboot or knowledge of the guard's code.
-- With `--lock-on-failure`, unexpected worker termination or a detected failure
-  triggers teardown followed by one best-effort macOS-lock request. Terminating
-  the supervisor also requests locking when recovery is possible. Accepted code
-  unlock and timed expiry release input without locking. See the detailed limits
-  in [privacy and recovery](docs/privacy-and-recovery.md).
+- `lock` supervises the worker by default. Unexpected worker termination or a
+  detected failure triggers teardown followed by one best-effort macOS-lock
+  request. Terminating the supervisor also requests locking when recovery is
+  possible. Code unlock and timed expiry release normally. Startup refuses if
+  native-lock preflight fails; it never silently falls back to unsupervised use.
+- `--no-lock-on-failure` explicitly opts out. A disabled tap, Secure Input or a
+  changed layout then ends the guard and **fails open**: input becomes available
+  without a macOS password prompt. `trial` is also unsupervised by default;
+  `--lock-on-failure` enables recovery for it.
+- A responsive worker handles controlled failures after its supervisor dies,
+  including setup failures after attempting arming. It removes its filter and
+  overlay before requesting locking. Simultaneous process loss and a parent
+  dying after the worker's last ownership check remain outside the guarantee.
+  See [privacy and recovery](docs/privacy-and-recovery.md).
 - Process termination, logout or restart removes the input filter. There is no daemon
   or automatic restart.
 - `lock` is unlimited by default. Timed runs have both a run-loop deadline and

@@ -11,12 +11,52 @@ let executable = Bundle.main.executablePath!
 if mode.hasPrefix("worker-") {
     let scenario = String(mode.dropFirst(7))
     if scenario == "preflight" { exit(2) }
-    guard let channel = GuardWorkerChannel(), channel.arm() else { exit(41) }
+    guard let channel = GuardWorkerChannel() else { exit(41) }
+    if scenario == "orphan-prearm" || scenario == "orphan-arm-failure" {
+        alarm(4)
+        if scenario == "orphan-prearm" {
+            kill(getppid(), SIGKILL); usleep(150_000)
+        } else {
+            // A separate test parent reads A then exits without sending Ready.
+            guard !channel.arm() else { exit(52) }
+            usleep(150_000)
+        }
+        guard channel.supervisorHasExited else { exit(53) }
+        var tornDown = false
+        var calls = 0
+        channel.finish(status: 1, teardown: { tornDown = true }) {
+            precondition(tornDown); calls += 1
+        }
+        precondition(tornDown && calls == (scenario == "orphan-prearm" ? 0 : 1))
+        print(scenario == "orphan-prearm" ? "ORPHAN_PREARM_PASS" : "ORPHAN_ARM_FAILURE_PASS")
+        exit(0)
+    }
+    guard channel.arm() else { exit(41) }
     switch scenario {
     case "clean":
         guard channel.heartbeat(), channel.complete() else { exit(42) }
         exit(0)
     case "zero": exit(0)
+    case "local-fault":
+        var tornDown = false
+        channel.finish(status: 3, teardown: { tornDown = true }) {
+            fatalError("A live supervisor still owns fallback")
+        }
+        precondition(tornDown); exit(3)
+    case "orphan-local-fault", "orphan-startup-fault", "orphan-normal":
+        alarm(4)
+        if scenario == "orphan-normal" { precondition(channel.complete()) }
+        kill(getppid(), SIGKILL); usleep(150_000)
+        precondition(channel.supervisorHasExited)
+        var resources = scenario == "orphan-startup-fault" ? 0 : 2
+        var calls = 0
+        channel.finish(status: scenario == "orphan-normal" ? 0 : 3,
+                       teardown: { resources = 0 }) {
+            precondition(resources == 0); calls += 1
+        }
+        precondition(resources == 0 && calls == (scenario == "orphan-normal" ? 0 : 1))
+        print("ORPHAN_RECOVERY_PASS:" + scenario)
+        exit(0)
     case "expiry":
         for _ in 0..<3 { usleep(80_000); guard channel.heartbeat() else { exit(42) } }
         guard channel.complete() else { exit(42) }
@@ -68,8 +108,9 @@ if mode == "reservation-supervisor" {
     withExtendedLifetime(reservation) {}
     exit(result)
 }
-if mode == "orphan-supervisor" {
-    exit(superviseGuard(executable: executable, arguments: ["worker-orphan"], heartbeatTimeout: 0.4) {
+if ["orphan-supervisor", "orphan-local-fault", "orphan-startup-fault", "orphan-normal", "orphan-prearm"].contains(mode) {
+    let worker = mode == "orphan-supervisor" ? "worker-orphan" : "worker-" + mode
+    exit(superviseGuard(executable: executable, arguments: [worker], heartbeatTimeout: 0.4) {
         fatalError("Orphan supervisor must be gone; no lock callback expected")
     })
 }
@@ -80,7 +121,7 @@ if mode == "backpressure" {
     exit(result == 3 && calls == 1 ? 0 : 47)
 }
 let cases: [(String, Int32, Int)] = [
-    ("preflight", 2, 0), ("clean", 0, 0), ("expiry", 0, 0), ("zero", 3, 1), ("parent-term", 3, 1),
+    ("preflight", 2, 0), ("local-fault", 3, 1), ("clean", 0, 0), ("expiry", 0, 0), ("zero", 3, 1), ("parent-term", 3, 1),
     ("crash", 3, 1), ("hang", 3, 1), ("late", 3, 1),
     ("cleanup-hang", 3, 1), ("stale", 3, 1), ("broken", 3, 1)
 ]

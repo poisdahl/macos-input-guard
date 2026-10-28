@@ -13,6 +13,7 @@ private func sendControl(_ fd: Int32, _ text: String) -> Bool {
 
 final class GuardWorkerChannel {
     private let supervisorPID = getppid()
+    private var armingAttempted = false
     var supervisorHasExited: Bool { supervisorPID > 1 && getppid() != supervisorPID }
     init?() {
         var kind: Int32 = 0
@@ -37,7 +38,17 @@ final class GuardWorkerChannel {
         return false
     }
 
-    func arm() -> Bool { exchange("A", expecting: 82) } // Ready
+    func arm() -> Bool {
+        armingAttempted = true
+        return exchange("A", expecting: 82) // Ready
+    }
+
+    // Called only on controlled exits. A channel error alone never transfers
+    // ownership; confirmed parent death does. Teardown always precedes locking.
+    func finish(status: Int32, teardown: () -> Void, lockAction: () -> Void) {
+        teardown()
+        if status != 0 && armingAttempted && supervisorHasExited { lockAction() }
+    }
     func complete() -> Bool { exchange("C", expecting: 68) } // Disarm accepted
 
     func heartbeat() -> Bool {

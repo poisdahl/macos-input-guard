@@ -128,28 +128,30 @@ let keyCharacters: [Int64: UInt8] = [
     31:111, 32:117, 34:105, 35:112, 37:108, 38:106, 40:107, 45:110, 46:109
 ]
 
-var suppliedArgs = Array(CommandLine.arguments.dropFirst())
-let isSupervisedWorker = suppliedArgs.first == "__worker"
-if isSupervisedWorker { suppliedArgs.removeFirst() }
-let privacy = suppliedArgs.contains("--privacy")
-let lockOnFailure = suppliedArgs.contains("--lock-on-failure")
-let args = suppliedArgs.filter { $0 != "--privacy" && $0 != "--lock-on-failure" }
-let mode = args.first ?? "help"
-guard (!privacy && !lockOnFailure) || ["lock", "trial"].contains(mode),
-      suppliedArgs.filter({ $0 == "--privacy" }).count <= 1,
-      suppliedArgs.filter({ $0 == "--lock-on-failure" }).count <= 1,
-      !isSupervisedWorker || lockOnFailure else {
-    report("Invalid options. Run input-guard --help."); exit(2)
-}
+let options: GuardOptions
+do { options = try GuardOptions(arguments: Array(CommandLine.arguments.dropFirst())) }
+catch { report("Invalid options. Run input-guard --help."); exit(2) }
+let isSupervisedWorker = options.isSupervisedWorker
+let privacy = options.privacy
+let lockOnFailure = options.lockOnFailure
+let args = options.args
+let mode = options.mode
 let workerChannel = isSupervisedWorker ? GuardWorkerChannel() : nil
 if isSupervisedWorker && workerChannel == nil { report("Private supervision channel unavailable."); exit(2) }
+// Every controlled post-arm failure removes its resources before an orphaned
+// worker can request locking; the live supervisor remains the normal owner.
+func finishWorker(status: Int32, teardown: () -> Void) {
+    if let workerChannel {
+        workerChannel.finish(status: status, teardown: teardown, lockAction: requestNativeLock)
+    } else { teardown() }
+}
 var blockingInstance: BlockingInstance?
 if isSupervisedWorker {
     do { blockingInstance = try BlockingInstance(inheritedDescriptor: 4) }
     catch { report("Inherited guard reservation unavailable."); exit(2) }
 }
 if mode == "--version" {
-    report("input-guard 0.2.0+brightness-dev")
+    report("input-guard 0.2.0+failure-default-dev")
     exit(0)
 }
 if mode == "help" || mode == "--help" {
@@ -162,9 +164,12 @@ if mode == "help" || mode == "--help" {
     input-guard trial [seconds]    No code; automatically releases after 1...60 seconds.
     input-guard observe [seconds]  Count event types/sources for 1...60 seconds; no blocking.
     input-guard preview [seconds]  Preview the privacy overlay for 1...60 seconds; no blocking.
-    Options for lock/trial (experimental; qualify your setup first):
-      --privacy                   Show a frosted overlay with unlock instructions.
-      --lock-on-failure           Supervise the guard; request macOS locking on faults.
+    Options for lock/trial (qualify your setup first):
+      --privacy                   Show a frosted overlay; off by default.
+      --lock-on-failure            Request macOS locking on faults; default for lock.
+      --no-lock-on-failure         Disable fallback; failures release input without macOS locking.
+    trial has no failure locking unless --lock-on-failure is explicit.
+    Code unlock and timed expiry release normally. Terminating a supervised lock requests macOS locking.
     input-guard probe              Show permissions, Secure Input and keyboard layout.
     input-guard --version          Show the release version.
 
@@ -180,7 +185,9 @@ if mode == "help" || mode == "--help" {
     exit(0)
 }
 if mode == "probe" {
-    report("accessibility=\(AXIsProcessTrusted()) secure_input=\(IsSecureEventInputEnabled()) layout=\(keyboardLayoutID())")
+    let trusted = AXIsProcessTrusted()
+    let availability = trusted ? String(ScreenLocker().available()) : "unavailable_without_accessibility"
+    report("accessibility=\(trusted) secure_input=\(IsSecureEventInputEnabled()) layout=\(keyboardLayoutID()) lock_action_available=\(availability)")
     exit(0)
 }
 if mode == "set-code" || mode == "forget-code" {
@@ -237,11 +244,11 @@ guard AXIsProcessTrusted() else {
 }
 if lockOnFailure && !isSupervisedWorker {
     guard ScreenLocker().available() else {
-        report("Native Lock Screen action unavailable. Supervised guard did not start."); exit(1)
+        report("Native Lock Screen action unavailable (requires Accessibility and the system Finder’s English Lock Screen action). Nothing is blocked. Use --no-lock-on-failure only if you accept failure releasing input without macOS locking."); exit(1)
     }
     let executable = processPath(getpid())
     guard executable != "<unavailable>" else { report("Cannot locate the guard executable."); exit(1) }
-    let result = superviseGuard(executable: executable, arguments: ["__worker"] + suppliedArgs,
+    let result = superviseGuard(executable: executable, arguments: options.workerArguments,
                                 reservationFD: blockingInstance?.inheritedDescriptor,
                                 lockAction: requestNativeLock)
     withExtendedLifetime(blockingInstance) {}
@@ -288,7 +295,6 @@ var brightnessCounts: [BrightnessControl: Int] = [:]
 var brightnessPassthrough = BrightnessPassthrough()
 var stopReason = "deadline"
 var exitStatus: Int32 = 0
-var localFallbackNeeded = false
 var normalCompletion = false
 let blocking = mode != "observe"
 var enteredCode: [UInt8] = []
@@ -352,7 +358,9 @@ let callback: CGEventTapCallBack = { _, type, event, _ in
     return blocking ? nil : Unmanaged.passUnretained(event)
 }
 if let workerChannel, !workerChannel.arm() {
-    report("Supervisor did not acknowledge arming. Nothing is blocked."); exit(1)
+    report("Supervisor did not acknowledge arming. Nothing is blocked.")
+    finishWorker(status: 1, teardown: {})
+    exit(1)
 }
 guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap,
                                 // Include system gesture events delivered to this tap, without
@@ -360,6 +368,7 @@ guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEve
                                 options: blocking ? .defaultTap : .listenOnly, eventsOfInterest: CGEventMask.max,
                                 callback: callback, userInfo: nil) else {
     report("Event tap creation failed; nothing is blocked.\(lockOnFailure ? " Supervisor will request native locking." : "")")
+    finishWorker(status: 1, teardown: {})
     exit(1)
 }
 let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
@@ -378,8 +387,11 @@ let own = tapList.prefix(min(Int(listed), tapList.count)).filter {
 guard countResult == .success, listResult == .success, own.count == 1,
       own[0].enabled, own[0].eventsOfInterest & requiredOrdinaryMask == requiredOrdinaryMask,
       CGEvent.tapIsEnabled(tap: tap), !IsSecureEventInputEnabled() else {
-    CGEvent.tapEnable(tap: tap, enable: false)
-    report("Ordinary event-mask registration could not be verified; filter removed.\(lockOnFailure ? " Supervisor will request native locking." : "")")
+    finishWorker(status: 1) {
+        CGEvent.tapEnable(tap: tap, enable: false)
+        CFMachPortInvalidate(tap)
+        report("Ordinary event-mask registration could not be verified; filter removed.\(lockOnFailure ? " Supervisor will request native locking." : "")")
+    }
     exit(1)
 }
 let registeredMask = own[0].eventsOfInterest
@@ -395,8 +407,13 @@ if privacy {
             stopReason = "display coverage lost"; exitStatus = 3; stopGuardLoop()
         })
     if overlay?.show() != true {
-        CGEvent.tapEnable(tap: tap, enable: false); overlay?.hide()
-        report("Privacy overlay failed; filter removed."); exit(3)
+        finishWorker(status: 3) {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            CFMachPortInvalidate(tap)
+            overlay?.hide()
+            report("Privacy overlay failed; filter removed.")
+        }
+        exit(3)
     }
 }
 let timer = Timer(timeInterval: 1, repeats: true) { _ in
@@ -411,7 +428,7 @@ let timer = Timer(timeInterval: 1, repeats: true) { _ in
         stopGuardLoop()
     } else if let workerChannel, !workerChannel.heartbeat() {
         stopReason = "supervisor channel lost"; exitStatus = 3
-        localFallbackNeeded = true; stopGuardLoop()
+        stopGuardLoop()
     } else if mode == "trial" {
         let remaining = seconds.map { "\($0 - Int(elapsed))s" } ?? "unlimited"
         report("ACTIVE tap_enabled=true remaining=\(remaining) captured=\(counts.values.reduce(0,+))")
@@ -432,26 +449,24 @@ if !normalCompletion && exitStatus == 0 {
 alarm(4)
 if exitStatus == 0, let workerChannel, !workerChannel.complete() {
     stopReason = "supervisor did not acknowledge completion"; exitStatus = 3
-    localFallbackNeeded = true
 }
-CGEvent.tapEnable(tap: tap, enable: false)
-CFMachPortInvalidate(tap)
-overlay?.hide()
-timer.invalidate()
-alarm(0)
-for (key, count) in (mode == "lock" ? [:] : counts).sorted(by: { $0.key < $1.key }) {
-    let parts = key.split(separator: ":")
-    let pid = Int32(parts[1]) ?? 0
-    report("event_type=\(parts[0]) source_pid=\(pid) count=\(count) source=\(pid == 0 ? "hardware/system" : processPath(pid))")
-}
-for control in BrightnessControl.allCases {
-    if let count = brightnessCounts[control] {
-        report("brightness_control=\(control.rawValue) \(blocking ? "passed" : "eligible")_events=\(count)")
+finishWorker(status: exitStatus) {
+    CGEvent.tapEnable(tap: tap, enable: false)
+    CFMachPortInvalidate(tap)
+    overlay?.hide()
+    timer.invalidate()
+    alarm(0)
+    for (key, count) in (mode == "lock" ? [:] : counts).sorted(by: { $0.key < $1.key }) {
+        let parts = key.split(separator: ":")
+        let pid = Int32(parts[1]) ?? 0
+        report("event_type=\(parts[0]) source_pid=\(pid) count=\(count) source=\(pid == 0 ? "hardware/system" : processPath(pid))")
     }
+    for control in BrightnessControl.allCases {
+        if let count = brightnessCounts[control] {
+            report("brightness_control=\(control.rawValue) \(blocking ? "passed" : "eligible")_events=\(count)")
+        }
+    }
+    report("ENDED reason=\(stopReason) elapsed=\(Int(ProcessInfo.processInfo.systemUptime - start))s; input filter removed")
 }
-report("ENDED reason=\(stopReason) elapsed=\(Int(ProcessInfo.processInfo.systemUptime - start))s; input filter removed")
-// A timeout or malformed message does not transfer fallback ownership. Only
-// confirmed parent death permits this worker to issue its own lock request.
-if localFallbackNeeded, workerChannel?.supervisorHasExited == true { requestNativeLock() }
 withExtendedLifetime(blockingInstance) {}
 exit(exitStatus)

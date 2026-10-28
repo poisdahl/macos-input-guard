@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+Make failure recovery the default for `lock`, with explicit
+`--no-lock-on-failure` opt-out. Keep `trial` unsupervised and privacy opt-in.
+Check native-lock availability before arming, and expose it through `probe`.
+Repair orphan-worker recovery for controlled local/setup failures and recheck
+active guards immediately before installation.
+
+Allow unmodified display/keyboard brightness up/down events, with tracked
+press/release pairing and modifier-shortcut rejection.
+
 ## 0.2.0 — 2026-10-27
 
 Add opt-in native screen frosting and unlock instructions (`--privacy`), an

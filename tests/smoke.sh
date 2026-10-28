@@ -11,7 +11,7 @@ trap 'rm -rf "$test_output"' EXIT HUP INT TERM
 "$binary" >"$test_output/default-help"
 cmp "$test_output/help" "$test_output/default-help"
 grep -q 'Default: unlimited' "$test_output/help"
-test "$("$binary" --version)" = 'input-guard 0.2.0+brightness-dev'
+test "$("$binary" --version)" = 'input-guard 0.2.0+failure-default-dev'
 
 expect_usage_error() {
     status=0
@@ -39,6 +39,13 @@ expect_usage_error preview 61
 expect_usage_error preview unlimited
 expect_usage_error preview --privacy
 expect_usage_error observe --lock-on-failure
+expect_usage_error observe --no-lock-on-failure
+expect_usage_error preview --no-lock-on-failure
+expect_usage_error lock --lock-on-failure --no-lock-on-failure
+expect_usage_error lock --no-lock-on-failure --no-lock-on-failure
+expect_usage_error lock --lock-on-failure --lock-on-failure
+expect_usage_error __worker lock
+expect_usage_error __worker lock --no-lock-on-failure
 expect_usage_error lock --privacy --privacy
 expect_usage_error __worker trial 2 --lock-on-failure
 expect_usage_error set-code extra
@@ -55,5 +62,6 @@ test -d "$test_output/install/input-guard"
 
 /usr/bin/codesign --verify --strict "$binary"
 echo 'PASS: CLI validation and signature; no input blocking or Keychain access.'
+"$project_dir/tests/options.sh"
 "$project_dir/tests/brightness.sh"
 "$project_dir/tests/supervisor.sh"

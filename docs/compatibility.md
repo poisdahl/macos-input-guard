@@ -30,8 +30,9 @@ when its target application receives no physical input.
 
 ## Manual test procedure
 
-Use a harmless application and save unrelated work first. Do not begin with an
-unlimited lock. Run only one blocking instance at a time.
+Use a harmless application and save unrelated work first. Release all keys and
+buttons before arming; a brightness key already held at activation is not
+physically qualified. Do not begin with an unlimited lock. Run only one blocking instance at a time.
 
 1. Start the actual computer-use session you intend to use. Have it perform a
    simple operation in Calculator or another disposable target.
@@ -77,9 +78,9 @@ brightness; Settings must not open (brightness may stay blocked if macOS still
 reports a modifier). Verify existing agent continuity, automatic expiry and
 saved-code unlock before relying on the candidate.
 
-### Local candidate evidence
+### Brightness-only candidate evidence
 
-On the same Intel Mac, the owner confirmed that both display brightness and
+For `0.2.0+brightness-dev` on the same Intel Mac, the owner confirmed that both display brightness and
 keyboard backlight changed during a passive check and a subsequent 30-second
 `trial 30 --privacy`. During the blocking trial, ordinary typing, pointer/clicks
 and Mission Control stayed blocked; the overlay disappeared and normal input
@@ -104,7 +105,8 @@ starting the guard for normal lighting control.
 After the candidate was rebuilt in a durable checkout, the owner completed
 `lock 60 --privacy` in Terminal and confirmed lighting control, saved-code unlock
 before expiry, overlay removal and restored normal input. These observations do
-not establish support for other hardware.
+not establish support for other hardware or physically qualify the later
+default-failure-locking development build.
 
 ## Initial manual evidence
 

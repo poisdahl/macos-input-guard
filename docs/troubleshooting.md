@@ -21,7 +21,8 @@ The program waits up to three seconds after its own hidden-code or Keychain
 interaction for Secure Input to clear naturally. It does not call an API to
 disable that protection. If it remains active, the guard refuses to start.
 If it appears during a run, the guard exits with status 3 and input is released.
-With `--lock-on-failure`, the supervisor then attempts native macOS locking.
+For `lock`, the supervisor then attempts native macOS locking by default.
+`--no-lock-on-failure` disables that recovery.
 
 ## The code does not unlock
 
@@ -36,18 +37,22 @@ With `--lock-on-failure`, the supervisor then attempts native macOS locking.
 
 A timed run expires. For an unlimited run, terminate the printed PID from a
 session controllable from another device, such as SSH: `kill -TERM <PID>`. Ctrl-C on the blocked
-keyboard will not reach the process. With `--lock-on-failure`, termination
-requests native macOS locking; use the printed supervisor PID for recovery.
+keyboard will not reach the process. A default `lock` requests native macOS
+locking on termination; use the printed supervisor PID for recovery.
 
 ## Overlay or native-lock fallback
 
-Both features require version 0.2.0+ and explicit options. `--privacy` uses a
+This development build supervises `lock` by default; release 0.2.0 needs
+explicit `--lock-on-failure`. Privacy always needs `--privacy`, which uses a
 native material; Reduce transparency makes it opaque, and some text may remain
 readable even with transparency enabled. Whole-display capture may see the
 overlay. Test your actual agent capture path with a bounded trial.
 
-`--lock-on-failure` requires Accessibility access and the validated English
-Finder Lock Screen menu action. An accepted request is not proof of locking.
+Failure recovery requires Accessibility access and the validated English
+Finder Lock Screen menu action. If unavailable, default `lock` refuses to start.
+`probe` checks availability without locking; run it in the same launch context.
+`--no-lock-on-failure` opts out and accepts failure releasing input without
+a macOS password prompt. An accepted request is not proof of locking.
 If a Codex curtain appears after fallback, the guard's filter has been removed:
 try a physical key or click, then authenticate normally. See the detailed
 [limits and recovery tests](privacy-and-recovery.md).

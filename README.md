@@ -7,8 +7,9 @@ A command-line tool that blocks local keyboard and mouse input while compatible
 computer-use automation continues. Unlock by typing a code, or use a timer.
 
 **Limited protection against casual unauthorized use:** the desktop stays
-unlocked. By default, failure releases input **without a macOS password prompt**.
-Optional screen frosting and best-effort crash-to-lock recovery are available.
+unlocked. By default, `lock` attempts the macOS lock screen after a failure;
+normal code unlock and timed expiry release input normally. Screen frosting is
+optional. Recovery is best effort, not a guarantee that macOS is locked.
 Use the macOS lock screen when
 you need stronger physical-access protection. Read the [security model](SECURITY.md).
 
@@ -116,29 +117,31 @@ permission/layout diagnostics, and `observe 15` for passive event counts.
 
 ## Recovery and limits
 
-For a frosted instruction overlay and a temporary crash supervisor (version 0.2.0+):
+`lock` starts a temporary supervisor by default. It removes the input filter
+before attempting the macOS lock after a fault. Normal code unlock and timed
+expiry do not request locking. **Terminating the guard requests macOS locking.**
+Use the printed supervisor PID when terminating it from another session.
+
+Screen frosting is optional:
 
 ```sh
 input-guard preview 20            # Overlay only; input remains usable
-input-guard lock 60 --privacy --lock-on-failure
+input-guard lock 60 --privacy     # Supervised lock plus overlay
 ```
 
-The supervisor removes the input filter before requesting the macOS lock after
-a failure. Normal code unlock and timed expiry do not request locking.
-**With `--lock-on-failure`, terminating the guard also requests macOS locking.**
-Both options are opt-in: verify them with a timed run before omitting `60` for
-unlimited use. Frosting does not guarantee unreadable text, and native locking
-is best effort. See [limits and test results](docs/privacy-and-recovery.md).
+The fallback requires Accessibility access and Finder's English **Lock Screen**
+action. If unavailable, the guard refuses to start; it never silently disables
+failure locking. `input-guard probe` checks availability in the current launch
+context. Frosting does not guarantee unreadable text or compatibility with every
+capture backend. See [limits and test results](docs/privacy-and-recovery.md).
 
-For the default mode, without `--lock-on-failure`:
+`trial` has no failure locking unless `--lock-on-failure` is explicit. To opt out
+for a regular lock, use `--no-lock-on-failure`: failures then release input
+**without macOS authentication**. Ctrl-C on the blocked keyboard is blocked too;
+keep a way to terminate the printed PID from another device, such as SSH.
 
-- Keep the printed PID. From a session you can control from another device
-  (such as SSH), stop that process with `kill -TERM <PID>`.
-  **Ctrl-C on the blocked keyboard is blocked too.**
-- Secure Input, a layout change or a disabled event tap ends the guard. It
-  **fails open**; it does not activate the macOS lock screen.
-- The guard does not prevent sleep, logout or restart, or preserve automation
-  across them. Restart/login protection depends on your macOS settings.
+The guard does not prevent sleep, logout or restart, or preserve automation
+across them. Restart/login protection depends on your macOS settings.
 
 For code-entry, permissions or Keychain problems, see [troubleshooting](docs/troubleshooting.md).
 Before extended unattended use, read the [security model](SECURITY.md).
