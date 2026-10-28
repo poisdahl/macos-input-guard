@@ -1,6 +1,6 @@
 # Security model
 
-The opt-in privacy/fallback options are described in
+The optional privacy overlay and default failure recovery for `lock` are described in
 [privacy and recovery](docs/privacy-and-recovery.md). The supervisor attempts
 native locking after an unexpected worker exit or detected failure, once its
 worker has ended; it does not provide fail-closed security. A frosted
@@ -21,7 +21,14 @@ macOS lock screen when access must remain blocked if this process stops or
 loses input interception.
 
 The guard operates at a Core Graphics session event tap and requests all event
-types available there. It swallows captured events, including synthetic events.
+types available there. It swallows captured events, including synthetic events,
+except the narrow brightness-control allowlist:
+display up/down and keyboard-backlight up/down system events, without modifiers
+other than Fn. Ordinary function keys, other system events and modifier shortcuts
+are not allowed. The exception permits anyone at the keyboard to adjust lighting,
+including making the display dark, and needs qualification for your hardware. Remappers
+or other same-user software could give these events additional actions; this
+filter cannot enforce how downstream software interprets an allowed event.
 Version 0.1.2 blocked Mission Control swipes in a supervised Intel Mac test;
 events handled elsewhere can still bypass it. Media keys, system shortcuts and
 multitouch gestures are not comprehensively covered. Hardware/system source metadata used
@@ -29,17 +36,20 @@ by the code detector is not a cryptographic proof of origin.
 
 ## Failure behavior
 
-- Without `--lock-on-failure`, a disabled tap, Secure Input or a changed layout
-  causes the guard to stop.
-  This intentionally **fails open**: local input becomes available again.
-  This default mode does not invoke the macOS lock screen or require a macOS password
-  when that happens. Failure can therefore expose the still-unlocked desktop
-  without any reboot or knowledge of the guard's code.
-- With `--lock-on-failure`, unexpected worker termination or a detected failure
-  triggers teardown followed by one best-effort macOS-lock request. Terminating
-  the supervisor also requests locking when recovery is possible. Accepted code
-  unlock and timed expiry release input without locking. See the detailed limits
-  in [privacy and recovery](docs/privacy-and-recovery.md).
+- `lock` supervises the worker by default. Unexpected worker termination or a
+  detected failure triggers teardown followed by one best-effort macOS-lock
+  request. Terminating the supervisor also requests locking when recovery is
+  possible. Code unlock and timed expiry release normally. Startup refuses if
+  native-lock preflight fails; it never silently falls back to unsupervised use.
+- `--no-lock-on-failure` explicitly opts out. A disabled tap, Secure Input or a
+  changed layout then ends the guard and **fails open**: input becomes available
+  without a macOS password prompt. `trial` is also unsupervised by default;
+  `--lock-on-failure` enables recovery for it.
+- A responsive worker handles controlled failures after its supervisor dies,
+  including setup failures after attempting arming. It removes its filter and
+  overlay before requesting locking. Simultaneous process loss and a parent
+  dying after the worker's last ownership check remain outside the guarantee.
+  See [privacy and recovery](docs/privacy-and-recovery.md).
 - Process termination, logout or restart removes the input filter. There is no daemon
   or automatic restart.
 - `lock` is unlimited by default. Timed runs have both a run-loop deadline and

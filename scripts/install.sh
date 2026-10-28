@@ -19,6 +19,11 @@ staged_binary=$(mktemp "$install_dir/.input-guard.XXXXXX")
 trap 'rm -f "$staged_binary"' EXIT HUP INT TERM
 /usr/bin/install -m 755 "$build_dir/input-guard" "$staged_binary"
 /usr/bin/codesign --verify --strict "$staged_binary"
+# Compilation may take minutes; a guard could have started in the meantime.
+if /usr/bin/pgrep -u "$(id -u)" -x input-guard >/dev/null 2>&1; then
+    echo 'An input-guard started during the build; update was not installed.' >&2
+    exit 1
+fi
 /bin/mv -f "$staged_binary" "$install_dir/input-guard"
 echo "Installed $install_dir/input-guard. No guard, login item or service was started."
 echo "First check compatibility with: $install_dir/input-guard trial 15"
