@@ -170,7 +170,7 @@ if mode == "help" || mode == "--help" {
       --no-lock-on-failure         Disable fallback; failures release input without macOS locking.
     trial has no failure locking unless --lock-on-failure is explicit.
     Code unlock and timed expiry release normally. Terminating a supervised lock requests macOS locking.
-    input-guard probe              Show permissions, Secure Input and keyboard layout.
+    input-guard probe              Check permissions, layout, Secure Input and native-lock availability.
     input-guard --version          Show the release version.
 
     Codes use 8...64 lowercase letters/digits (a-z, 0-9).
@@ -178,7 +178,7 @@ if mode == "help" || mode == "--help" {
     No Enter is needed. Codes are never printed. Only set-code saves a code.
     Saved-code changes apply to future runs; an active guard keeps its current code.
     Supports Apple Norwegian, Norwegian Extended, US and ABC QWERTY layouts.
-    Unmodified display/keyboard brightness controls remain available; Fn is allowed.
+    Release all keys/buttons before starting. Unmodified lighting controls remain available; Fn is allowed.
     Timed runs expire automatically; unlimited has no expiry. Process exit removes the filter.
     This is an input guard, not the macOS security lock. Screen contents remain visible.
     """)

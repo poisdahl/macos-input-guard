@@ -24,35 +24,32 @@ final class ScreenLocker {
         let finders = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder")
             .filter { $0.bundleURL?.path == "/System/Library/CoreServices/Finder.app" }
         guard finders.count == 1 else { return nil }
-        for pid in [finders[0].processIdentifier] {
-            let app = AXUIElementCreateApplication(pid)
-            guard let bar = element(value(app, kAXMenuBarAttribute, before: deadline)),
-                  let barChildren = value(bar, kAXChildrenAttribute, before: deadline) as? [AXUIElement],
-                  let appleMenu = barChildren.first,
-                  let children = value(appleMenu, kAXChildrenAttribute, before: deadline) as? [AXUIElement],
-                  children.count == 1,
-                  let menu = children.first,
-                  value(menu, kAXRoleAttribute, before: deadline) as? String == kAXMenuRole,
-                  let items = value(menu, kAXChildrenAttribute, before: deadline) as? [AXUIElement],
-                  items.count <= 32 else { continue }
-            var matches: [AXUIElement] = []
-            for item in items {
-                guard let character = value(item, kAXMenuItemCmdCharAttribute, before: deadline) as? String,
-                      character.lowercased() == "q",
-                      value(item, kAXTitleAttribute, before: deadline) as? String == "Lock Screen",
-                      (value(item, kAXMenuItemCmdModifiersAttribute, before: deadline) as? NSNumber)?.uint32Value == 4,
-                      value(item, kAXRoleAttribute, before: deadline) as? String == kAXMenuItemRole,
-                      (value(item, kAXEnabledAttribute, before: deadline) as? NSNumber)?.boolValue == true else { continue }
-                var actions: CFArray?
-                guard ProcessInfo.processInfo.systemUptime < deadline,
-                      AXUIElementCopyActionNames(item, &actions) == .success,
-                      (actions as? [String])?.contains(kAXPressAction) == true else { continue }
-                matches.append(item)
-            }
-            if matches.count == 1 { return matches[0] }
-            if matches.count > 1 { return nil }
+        let app = AXUIElementCreateApplication(finders[0].processIdentifier)
+        guard let bar = element(value(app, kAXMenuBarAttribute, before: deadline)),
+              let barChildren = value(bar, kAXChildrenAttribute, before: deadline) as? [AXUIElement],
+              let appleMenu = barChildren.first,
+              let children = value(appleMenu, kAXChildrenAttribute, before: deadline) as? [AXUIElement],
+              children.count == 1,
+              let menu = children.first,
+              value(menu, kAXRoleAttribute, before: deadline) as? String == kAXMenuRole,
+              let items = value(menu, kAXChildrenAttribute, before: deadline) as? [AXUIElement],
+              items.count <= 32 else { return nil }
+        var matches: [AXUIElement] = []
+        for item in items {
+            guard let character = value(item, kAXMenuItemCmdCharAttribute, before: deadline) as? String,
+                  character.lowercased() == "q",
+                  value(item, kAXTitleAttribute, before: deadline) as? String == "Lock Screen",
+                  (value(item, kAXMenuItemCmdModifiersAttribute, before: deadline) as? NSNumber)?.uint32Value == 4,
+                  value(item, kAXRoleAttribute, before: deadline) as? String == kAXMenuItemRole,
+                  (value(item, kAXEnabledAttribute, before: deadline) as? NSNumber)?.boolValue == true else { continue }
+            var actions: CFArray?
+            guard ProcessInfo.processInfo.systemUptime < deadline,
+                  AXUIElementCopyActionNames(item, &actions) == .success,
+                  (actions as? [String])?.contains(kAXPressAction) == true else { continue }
+            matches.append(item)
         }
-        return nil
+        guard matches.count == 1, ProcessInfo.processInfo.systemUptime < deadline else { return nil }
+        return matches[0]
     }
 
     func available() -> Bool {
