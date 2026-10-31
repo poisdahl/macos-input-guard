@@ -78,7 +78,8 @@ prompt for Keychain access again; preserve its normal access controls.
 | `preview 20` | Overlay only; input remains usable. |
 
 Unmodified display brightness and keyboard backlight up/down remain available;
-Fn is allowed. Modifier shortcuts stay blocked. Release modifiers before arming:
+Fn is allowed. Turn Caps Lock off. Modifier shortcuts stay blocked.
+Release modifiers before arming:
 a held modifier can keep lighting blocked for that run. Other gestures, shortcuts
 and device-specific input paths are not comprehensively covered.
 

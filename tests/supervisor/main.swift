@@ -11,6 +11,16 @@ let executable = Bundle.main.executablePath!
 if mode.hasPrefix("worker-") {
     let scenario = String(mode.dropFirst(7))
     if scenario == "preflight" { exit(2) }
+    if scenario == "prearm-close" { close(3); usleep(150_000); exit(2) }
+    if scenario.hasPrefix("prearm-terminal-") {
+        var terminal = termios()
+        precondition(tcgetattr(STDIN_FILENO, &terminal) == 0)
+        terminal.c_lflag &= ~tcflag_t(ECHO)
+        precondition(tcsetattr(STDIN_FILENO, TCSANOW, &terminal) == 0)
+        let number = scenario.hasSuffix("int") ? SIGINT : (scenario.hasSuffix("hup") ? SIGHUP : SIGTERM)
+        kill(getppid(), number)
+        sleep(3); exit(54)
+    }
     guard let channel = GuardWorkerChannel() else { exit(41) }
     if scenario == "orphan-prearm" || scenario == "orphan-arm-failure" {
         alarm(4)
@@ -59,6 +69,17 @@ if mode.hasPrefix("worker-") {
         exit(0)
     case "expiry":
         for _ in 0..<3 { usleep(80_000); guard channel.heartbeat() else { exit(42) } }
+        guard channel.complete() else { exit(42) }
+        exit(0)
+    case "queued-heartbeats":
+        // Pause only this harness's supervisor; the worker remains healthy.
+        kill(getppid(), SIGSTOP)
+        for _ in 0..<7 {
+            usleep(900_000)
+            guard channel.heartbeat() else { kill(getppid(), SIGCONT); exit(42) }
+        }
+        kill(getppid(), SIGCONT)
+        usleep(150_000)
         guard channel.complete() else { exit(42) }
         exit(0)
     case "parent-term": kill(getppid(), SIGTERM); sleep(3)
@@ -120,8 +141,16 @@ if mode == "backpressure" {
     let result = superviseGuard(executable: executable, arguments: ["worker-crash"], heartbeatTimeout: 0.4) { calls += 1 }
     exit(result == 3 && calls == 1 ? 0 : 47)
 }
+if mode.hasPrefix("terminal-") || mode == "queued-heartbeats" {
+    var calls = 0
+    let worker = mode == "queued-heartbeats" ? mode : "prearm-" + mode
+    let result = superviseGuard(executable: executable, arguments: ["worker-" + worker]) { calls += 1 }
+    precondition(result == (mode == "queued-heartbeats" ? 0 : 1) && calls == 0)
+    print("PASS: " + mode)
+    exit(0)
+}
 let cases: [(String, Int32, Int)] = [
-    ("preflight", 2, 0), ("local-fault", 3, 1), ("clean", 0, 0), ("expiry", 0, 0), ("zero", 3, 1), ("parent-term", 3, 1),
+    ("preflight", 2, 0), ("prearm-close", 2, 0), ("local-fault", 3, 1), ("clean", 0, 0), ("expiry", 0, 0), ("zero", 3, 1), ("parent-term", 3, 1),
     ("crash", 3, 1), ("hang", 3, 1), ("late", 3, 1),
     ("cleanup-hang", 3, 1), ("stale", 3, 1), ("broken", 3, 1)
 ]
@@ -138,3 +167,9 @@ for (scenario, expected, expectedCalls) in cases {
     precondition(ProcessInfo.processInfo.systemUptime - started < 4)
     print("PASS: \(scenario)")
 }
+for _ in 0..<10 {
+    precondition(superviseGuard(executable: executable, arguments: ["worker-preflight"]) {
+        fatalError("Pre-arm exit must not request locking")
+    } == 2)
+}
+print("PASS: repeated pre-arm exit preserves status")

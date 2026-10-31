@@ -9,8 +9,21 @@ mkdir -p "$build_dir"
     -o "$build_dir/supervisor-tests"
 "$build_dir/supervisor-tests"
 python3 - "$build_dir/supervisor-tests" <<'PY'
-import os, subprocess, sys, time, socket, tempfile, fcntl
+import os, subprocess, sys, time, socket, tempfile, fcntl, termios
 binary=sys.argv[1]
+# A descheduled supervisor must drain current heartbeats before expiring them.
+subprocess.run([binary,'queued-heartbeats'],check=True,timeout=10)
+# Simulate a hidden prompt killed by a signal sent only to the supervisor.
+for signal_name in ['int','hup','term']:
+    master,slave=os.openpty()
+    before=termios.tcgetattr(slave)
+    assert before[3] & termios.ECHO
+    try:
+        subprocess.run([binary,'terminal-'+signal_name],stdin=slave,check=True,timeout=4)
+        assert termios.tcgetattr(slave)==before, signal_name
+    finally:
+        os.close(master);os.close(slave)
+print('PASS: pre-arm signal recovery restores terminal settings')
 # A full output pipe must not stall lifecycle supervision. Drain only after exit.
 p=subprocess.Popen([binary,'backpressure'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 try:

@@ -65,6 +65,15 @@ final class GuardWorkerChannel {
 func superviseGuard(executable: String, arguments: [String], heartbeatTimeout: Double = 5,
                     reservationFD: Int32? = nil,
                     lockAction: () -> Void) -> Int32 {
+    var armed = false
+    var reaped = false
+    var terminal = termios()
+    let savedTerminal = tcgetattr(STDIN_FILENO, &terminal) == 0
+    defer {
+        // A pre-arm getpass may have been killed before restoring echo. Never
+        // overwrite terminal changes after an armed run, or before confirmed exit.
+        if savedTerminal && reaped && !armed { _ = tcsetattr(STDIN_FILENO, TCSANOW, &terminal) }
+    }
     var sockets = [Int32](repeating: -1, count: 2)
     guard socketpair(AF_UNIX, SOCK_STREAM, 0, &sockets) == 0 else { return 1 }
     defer { close(sockets[0]) }
@@ -117,19 +126,15 @@ func superviseGuard(executable: String, arguments: [String], heartbeatTimeout: D
     guard spawnResult == 0 else { return 1 }
     report("SUPERVISOR pid=\(getpid()) worker_pid=\(child); native lock fallback is best effort")
 
-    var armed = false
     var completing = false
     var completionTime = 0.0
     var lastHeartbeat = 0.0
     var buffer = Data()
     var fault: String?
-    var reaped = false
+    var prearmEOFTime: TimeInterval?
     var childStatus: Int32 = 0
     while fault == nil {
         if supervisorSignal != 0 { fault = "supervisor termination signal"; break }
-        if armed && !completing && ProcessInfo.processInfo.systemUptime - lastHeartbeat > heartbeatTimeout {
-            fault = "guard heartbeat expired"; break
-        }
         var eof = false
         var bytes = [UInt8](repeating: 0, count: 256)
         // Bound each drain so a faulty worker cannot starve timeout/reaping.
@@ -147,7 +152,8 @@ func superviseGuard(executable: String, arguments: [String], heartbeatTimeout: D
             let parts = line.split(separator: ":", omittingEmptySubsequences: false)
             let now = ProcessInfo.processInfo.systemUptime
             guard parts.count == 2, let stamp = Double(parts[1]), stamp.isFinite,
-                  stamp <= now + 0.05, now - stamp <= min(2, heartbeatTimeout),
+                  stamp <= now + 0.05,
+                  parts[0] == "H" || now - stamp <= min(2, heartbeatTimeout),
                   !armed || stamp >= lastHeartbeat else { fault = "stale or invalid heartbeat"; break }
             switch parts[0] {
             case "A" where !armed:
@@ -179,11 +185,19 @@ func superviseGuard(executable: String, arguments: [String], heartbeatTimeout: D
         let now = ProcessInfo.processInfo.systemUptime
         if armed && !completing && now - lastHeartbeat > heartbeatTimeout { fault = "guard heartbeat expired" }
         if completing && now - completionTime > 2 { fault = "guard did not exit after completion" }
-        if eof && !completing && !reaped { fault = "guard control channel closed" }
+        if eof && !completing && !reaped {
+            if armed { fault = "guard control channel closed" }
+            else {
+                // EOF can precede waitpid readiness. Let a preflight refusal
+                // finish and preserve its exit status, without waiting forever.
+                if prearmEOFTime == nil { prearmEOFTime = now }
+                if now - prearmEOFTime! >= 0.5 { fault = "guard control channel closed" }
+            }
+        }
         if fault == nil { usleep(50_000) }
     }
     if !reaped {
-        // Termination removes both event tap and panels before native locking.
+        // Confirm worker exit before requesting native locking.
         kill(child, SIGKILL)
         var result: pid_t = 0
         let deadline = ProcessInfo.processInfo.systemUptime + 3
@@ -195,6 +209,7 @@ func superviseGuard(executable: String, arguments: [String], heartbeatTimeout: D
             report("Worker termination could not be confirmed; lock state unconfirmed.")
             return 3
         }
+        reaped = true
     }
     guard armed else { return 1 }
     report("PROTECTION LOST: \(fault ?? "unknown failure"). Worker ended; requesting macOS Lock Screen once.")
@@ -205,10 +220,11 @@ func superviseGuard(executable: String, arguments: [String], heartbeatTimeout: D
 func requestNativeLock() {
     // Independent backstop for a stuck Accessibility request; this process has
     // no active input tap or privacy windows when this function is called.
-    signal(SIGALRM, SIG_DFL); alarm(6)
+    signal(SIGALRM, SIG_DFL); alarm(12)
     switch ScreenLocker().request() {
     case .accepted: report("macOS lock request accepted; lock state unconfirmed.")
     case .unavailable: report("Lock Screen action unavailable; lock state unconfirmed. Lock macOS manually.")
+    case .unconfirmed(let code): report("Lock Screen request outcome unconfirmed (\(code)); lock state unconfirmed. Check macOS manually.")
     case .rejected(let code): report("Lock Screen request failed (\(code)); lock state unconfirmed. Lock macOS manually.")
     }
     alarm(0)

@@ -11,7 +11,7 @@ trap 'rm -rf "$test_output"' EXIT HUP INT TERM
 "$binary" >"$test_output/default-help"
 cmp "$test_output/help" "$test_output/default-help"
 grep -q 'Default: unlimited' "$test_output/help"
-test "$("$binary" --version)" = 'input-guard 0.3.0'
+test "$("$binary" --version)" = 'input-guard 0.3.1'
 
 expect_usage_error() {
     status=0
@@ -64,4 +64,6 @@ test -d "$test_output/install/input-guard"
 echo 'PASS: CLI validation and signature; no input blocking or Keychain access.'
 "$project_dir/tests/options.sh"
 "$project_dir/tests/brightness.sh"
+"$project_dir/tests/unlock.sh"
+"$project_dir/tests/screen-lock.sh"
 "$project_dir/tests/supervisor.sh"
