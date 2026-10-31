@@ -44,8 +44,10 @@ the code and owns the event filter and overlay. Their private inherited control
 channel carries lifecycle messages, never the code. Both processes retain the
 same blocking-instance reservation until their work ends.
 
-After preflight/code entry, the supervisor arms before the event filter is
-created. Cancellation or refusal during code/preflight checks does not request locking.
+After preflight/code entry, the supervisor arms before the overlay and event
+filter are created. The overlay is prepared before the event tap so AppKit
+startup does not delay servicing an active tap.
+Cancellation or refusal during code/preflight checks does not request locking.
 After an arming attempt, an orphaned worker conservatively requests locking on
 a controlled failure, including a lost acknowledgement. A setup failure
 **after** arming also requests locking, even if startup
@@ -53,12 +55,18 @@ never reached the `BLOCKING` message.
 
 On an unexpected worker exit (including SIGKILL), lost interception, or a stale
 event-loop heartbeat, the supervisor terminates and reaps its own worker.
-**Only after the worker's filter and windows are gone** does it request the
-system Finder's Lock Screen action. A responsive worker can also detect that
+**Only after confirming the worker has exited** does it request the
+system Finder's Lock Screen action. Removal of its tap and windows is left to
+macOS; reaping the worker does not verify WindowServer cleanup timing.
+A responsive worker can also detect that
 its supervisor has died, remove its own filter/windows, and request locking.
 Controlled local faults and post-arm setup failures also check parent death
 after teardown, so they do not skip recovery while exiting as an orphan.
 Each path makes one request; it does not restart protection or repeatedly lock.
+Discovery of the validated menu action may retry within an eight-second budget,
+with up to one second per Accessibility call. The press is attempted at most
+once, and the fallback process has a twelve-second alarm backstop. A delayed
+or missing press response is reported as an unconfirmed outcome.
 
 Accepted code unlock and the explicitly selected timed expiry are normal
 releases. They do not request macOS locking. **Terminating a supervised guard
@@ -79,7 +87,7 @@ This is **best effort, not fail-closed security**:
 - A supervisor dying immediately after the worker checks ownership can still
   escape detection during shutdown. This is not a guarantee of recovery from
   simultaneous failures.
-- There is no automatic retry after a failed request. Normal macOS protection
+- There is no automatic retry of the press. Normal macOS protection
   and restart/login settings remain independent of Input Guard.
 - Codex Locked use may show its own curtain while temporarily using the Mac.
   Input Guard must be gone so local input can reach that curtain's takeover
@@ -126,9 +134,43 @@ These observations do not establish unreadable screen content, multi-display
 coverage or compatibility with other capture backends or agents.
 
 These physical crash/hang and code-unlock observations apply to 0.2.0. The
-0.3.0 candidate's default-failure recovery changes passed automated tests but
-were not physically requalified on this candidate. Its later Claude trials qualify
+original 0.3.0 candidate's default-failure recovery changes passed automated
+tests but were not physically requalified before release. Its Claude trials qualify
 [normal input blocking and timed expiry](compatibility.md#claude-and-native-macos-locking--2026-10-28).
+
+### Review-fix candidate — 2026-10-31
+
+On one Intel Mac running macOS 15.8.1 with Apple's Norwegian keyboard layout,
+the unreleased review-fix build (still reporting `0.3.0`) passed owner-supervised
+checks. The tested executable's SHA256 was
+`e3c79223eb8a4aaaa679942e2ab7ac29e89dd97cc0a109cb1379f37e55c23882`.
+
+- A 10-second overlay preview ended normally. A subsequent 30-second
+  `trial --privacy` captured 1,903 events and expired normally. The owner
+  confirmed typing, pointer/clicks and Mission Control stayed blocked,
+  displays were covered, and the overlay disappeared with normal input restored.
+  Lighting controls worked; counters recorded display brightness up/down and
+  keyboard backlight up. Keyboard backlight down was not independently recorded.
+- The same existing native Codex Calculator binding calculated
+  `683 - 247 = 436` and `29 × 17 = 493`, with fresh app screenshots during
+  the blocking interval.
+- A default-supervised `lock 60 --privacy` used the saved code. The owner typed
+  all but its last character, two extra letters, two Backspaces, then the last
+  character and released it. Unlock was accepted at 49 seconds; the owner
+  confirmed overlay removal and restored input without macOS locking.
+- Separate supervised `trial 60 --privacy --lock-on-failure` runs injected a
+  worker crash (SIGKILL) and a worker hang (SIGSTOP). The crash produced an
+  unexpected-exit fault; the hang produced heartbeat expiry. Both supervisors
+  confirmed worker exit before one accepted native-lock request and exited
+  with status 3. After each, the owner confirmed normal macOS authentication,
+  restored keyboard/pointer input, overlay removal and no second lock.
+
+No guard processes remained after recovery, and the tested binary/source hashes
+matched the recorded candidate. These observations apply to this machine,
+devices and agent session. They do not qualify Apple Silicon, recovery under
+system load, other display configurations or other automation backends.
+
+### Automated checks
 
 Automated `tests/supervisor.sh` requires Python 3.9+ and uses test workers and a
 substitute lock callback. The deployed executable does not require Python.
@@ -136,11 +178,18 @@ It does not block input, read Keychain or invoke a real lock. It exercises norma
 completion, preflight failure, unexpected exits, crashes, stopped workers,
 stale/closed channels, delayed acknowledgements, stalled output, supervisor
 death and continued instance ownership.
+It also covers queued heartbeats after a supervisor scheduling delay, pre-arm
+exit statuses and terminal restoration. `tests/unlock.sh` checks code-entry
+event fixtures without posting events; `tests/screen-lock.sh` checks discovery
+deadlines and the single-press rule with injected operations, without calling AX.
+Physical observations for the review-fix build are recorded above; other setups
+need their own owner-supervised checks.
 
 ## Implementation references
 
 - [Apple: nonactivating overlays across Spaces](https://developer.apple.com/forums/thread/826308)
 - [Apple: independent window capture despite occlusion](https://developer.apple.com/videos/play/wwdc2022/10155/)
+- [Apple: Accessibility action results and delayed responses](https://developer.apple.com/documentation/applicationservices/1462091-axuielementperformaction)
 - [OpenAI: Locked use and local takeover](https://learn.chatgpt.com/docs/computer-use#locked-use)
 
 These describe API behavior and design constraints, not certification of this

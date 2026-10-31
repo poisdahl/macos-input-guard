@@ -118,15 +118,8 @@ func saveCode(_ code: [UInt8]) {
     }
 }
 
-// Physical positions shared by the explicitly supported Apple QWERTY layouts.
 let supportedLayouts = ["com.apple.keylayout.Norwegian", "com.apple.keylayout.NorwegianExtended",
                         "com.apple.keylayout.US", "com.apple.keylayout.ABC"]
-let keyCharacters: [Int64: UInt8] = [
-    0:97, 1:115, 2:100, 3:102, 4:104, 5:103, 6:122, 7:120, 8:99, 9:118,
-    11:98, 12:113, 13:119, 14:101, 15:114, 16:121, 17:116,
-    18:49, 19:50, 20:51, 21:52, 22:54, 23:53, 25:57, 26:55, 28:56, 29:48,
-    31:111, 32:117, 34:105, 35:112, 37:108, 38:106, 40:107, 45:110, 46:109
-]
 
 let options: GuardOptions
 do { options = try GuardOptions(arguments: Array(CommandLine.arguments.dropFirst())) }
@@ -151,7 +144,7 @@ if isSupervisedWorker {
     catch { report("Inherited guard reservation unavailable."); exit(2) }
 }
 if mode == "--version" {
-    report("input-guard 0.3.0")
+    report("input-guard 0.3.1")
     exit(0)
 }
 if mode == "help" || mode == "--help" {
@@ -297,9 +290,7 @@ var stopReason = "deadline"
 var exitStatus: Int32 = 0
 var normalCompletion = false
 let blocking = mode != "observe"
-var enteredCode: [UInt8] = []
-var lastCodeKeyTime: TimeInterval = 0
-var unlockingKey: Int64?
+var codeEntry = mode == "lock" ? UnlockCodeEntry(code: unlockCode) : nil
 let eventTypes: [CGEventType] = [
     .keyDown, .keyUp, .flagsChanged, .leftMouseDown, .leftMouseUp,
     .rightMouseDown, .rightMouseUp, .mouseMoved, .leftMouseDragged,
@@ -307,60 +298,59 @@ let eventTypes: [CGEventType] = [
 ]
 let requiredOrdinaryMask = eventTypes.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
 let callback: CGEventTapCallBack = { _, type, event, _ in
-    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-        stopReason = "event tap disabled; protection lost"
-        exitStatus = 3
-        stopGuardLoop()
-        return Unmanaged.passUnretained(event)
-    }
-    let pid = event.getIntegerValueField(.eventSourceUnixProcessID)
-    let key = "\(type.rawValue):\(pid)"
-    if mode != "lock", counts[key] != nil || counts.count < 256 { counts[key, default: 0] += 1 }
-    if let brightness = brightnessPassthrough.decision(for: event, currentFlags: {
-        CGEventSource.flagsState(.combinedSessionState).union(CGEventSource.flagsState(.hidSystemState))
-    }) {
-        if mode != "lock" { brightnessCounts[brightness.control, default: 0] += 1 }
-        // A lighting adjustment is not part of code entry. Never forward
-        // modifier changes or synthesize replacement input to make it work.
-        if blocking && brightness.release {
-            event.flags = CGEventFlags(rawValue: event.flags.rawValue & ~brightnessForbiddenFlags)
+    return autoreleasepool {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            stopReason = "event tap disabled; protection lost"
+            exitStatus = 3
+            stopGuardLoop()
+            return Unmanaged.passUnretained(event)
         }
-        enteredCode.removeAll(keepingCapacity: true)
-        return Unmanaged.passUnretained(event)
-    }
-    if mode == "lock", pid == 0 {
-        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-        if type == .keyUp, let finalKey = unlockingKey, keyCode == finalKey {
+        let pid = event.getIntegerValueField(.eventSourceUnixProcessID)
+        let key = "\(type.rawValue):\(pid)"
+        if mode != "lock", counts[key] != nil || counts.count < 256 { counts[key, default: 0] += 1 }
+        if let brightness = brightnessPassthrough.decision(for: event, currentFlags: {
+            CGEventSource.flagsState(.combinedSessionState).union(CGEventSource.flagsState(.hidSystemState))
+        }) {
+            if mode != "lock" { brightnessCounts[brightness.control, default: 0] += 1 }
+            // A lighting adjustment is not part of code entry. Never forward
+            // modifier changes or synthesize replacement input to make it work.
+            if blocking && brightness.release {
+                event.flags = CGEventFlags(rawValue: event.flags.rawValue & ~brightnessForbiddenFlags)
+            }
+            codeEntry?.resetPartial()
+            return Unmanaged.passUnretained(event)
+        }
+        if codeEntry?.handle(event, at: ProcessInfo.processInfo.systemUptime) == true {
             stopReason = "unlock code accepted"
             normalCompletion = true
             stopGuardLoop()
-        } else if type == .keyDown, unlockingKey == nil,
-                  event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
-            let now = ProcessInfo.processInfo.systemUptime
-            if now - lastCodeKeyTime > 10 { enteredCode.removeAll(keepingCapacity: true) }
-            lastCodeKeyTime = now
-            let forbidden: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift, .maskAlphaShift]
-            if !event.flags.intersection(forbidden).isEmpty {
-                enteredCode.removeAll(keepingCapacity: true)
-            } else if keyCode == 51 { // Backspace corrects a partial code.
-                if !enteredCode.isEmpty { enteredCode.removeLast() }
-            } else if let character = keyCharacters[keyCode] {
-                enteredCode.append(character)
-                if enteredCode.count > unlockCode.count { enteredCode.removeFirst() }
-                if enteredCode == unlockCode { unlockingKey = keyCode }
-            } else {
-                enteredCode.removeAll(keepingCapacity: true)
-            }
-        } else if type == .flagsChanged {
-            enteredCode.removeAll(keepingCapacity: true)
         }
+        return blocking ? nil : Unmanaged.passUnretained(event)
     }
-    return blocking ? nil : Unmanaged.passUnretained(event)
 }
 if let workerChannel, !workerChannel.arm() {
     report("Supervisor did not acknowledge arming. Nothing is blocked.")
     finishWorker(status: 1, teardown: {})
     exit(1)
+}
+// Finish AppKit/display setup before creating an active, unserviced event tap.
+// Bound startup even for unsupervised trials if AppKit does not return.
+signal(SIGALRM, SIG_DFL)
+alarm(5)
+var overlay: PrivacyOverlay?
+if privacy {
+    overlay = PrivacyOverlay(instruction: mode == "lock"
+        ? "Input Guard is active\nType your Input Guard code to release. No Enter needed."
+        : "Input Guard trial\nInput is blocked. This trial ends automatically.", coverageLost: {
+            stopReason = "display coverage lost"; exitStatus = 3; stopGuardLoop()
+        })
+    if overlay?.show() != true {
+        finishWorker(status: 3) {
+            overlay?.hide()
+            report("Privacy overlay failed; nothing is blocked.")
+        }
+        exit(3)
+    }
 }
 guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap,
                                 // Include system gesture events delivered to this tap, without
@@ -368,7 +358,7 @@ guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEve
                                 options: blocking ? .defaultTap : .listenOnly, eventsOfInterest: CGEventMask.max,
                                 callback: callback, userInfo: nil) else {
     report("Event tap creation failed; nothing is blocked.\(lockOnFailure ? " Supervisor will request native locking." : "")")
-    finishWorker(status: 1, teardown: {})
+    finishWorker(status: 1, teardown: { overlay?.hide() })
     exit(1)
 }
 let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
@@ -390,6 +380,7 @@ guard countResult == .success, listResult == .success, own.count == 1,
     finishWorker(status: 1) {
         CGEvent.tapEnable(tap: tap, enable: false)
         CFMachPortInvalidate(tap)
+        overlay?.hide()
         report("Ordinary event-mask registration could not be verified; filter removed.\(lockOnFailure ? " Supervisor will request native locking." : "")")
     }
     exit(1)
@@ -399,39 +390,24 @@ let start = ProcessInfo.processInfo.systemUptime
 // Default SIGALRM terminates even if the run loop stalls. Process death removes its tap.
 signal(SIGALRM, SIG_DFL)
 alarm(seconds.map { UInt32($0 + 2) } ?? 0)
-var overlay: PrivacyOverlay?
-if privacy {
-    overlay = PrivacyOverlay(instruction: mode == "lock"
-        ? "Input Guard is active\nType your Input Guard code to release. No Enter needed."
-        : "Input Guard trial\nInput is blocked. This trial ends automatically.", coverageLost: {
-            stopReason = "display coverage lost"; exitStatus = 3; stopGuardLoop()
-        })
-    if overlay?.show() != true {
-        finishWorker(status: 3) {
-            CGEvent.tapEnable(tap: tap, enable: false)
-            CFMachPortInvalidate(tap)
-            overlay?.hide()
-            report("Privacy overlay failed; filter removed.")
-        }
-        exit(3)
-    }
-}
 let timer = Timer(timeInterval: 1, repeats: true) { _ in
-    let elapsed = ProcessInfo.processInfo.systemUptime - start
-    if IsSecureEventInputEnabled() || !CGEvent.tapIsEnabled(tap: tap)
-        || (mode == "lock" && keyboardLayoutID() != initialLayout) {
-        stopReason = "Secure Input, layout change or event tap disabled; protection lost"
-        exitStatus = 3
-        stopGuardLoop()
-    } else if let seconds, elapsed >= Double(seconds) {
-        normalCompletion = true
-        stopGuardLoop()
-    } else if let workerChannel, !workerChannel.heartbeat() {
-        stopReason = "supervisor channel lost"; exitStatus = 3
-        stopGuardLoop()
-    } else if mode == "trial" {
-        let remaining = seconds.map { "\($0 - Int(elapsed))s" } ?? "unlimited"
-        report("ACTIVE tap_enabled=true remaining=\(remaining) captured=\(counts.values.reduce(0,+))")
+    autoreleasepool {
+        let elapsed = ProcessInfo.processInfo.systemUptime - start
+        if IsSecureEventInputEnabled() || !CGEvent.tapIsEnabled(tap: tap)
+            || (mode == "lock" && keyboardLayoutID() != initialLayout) {
+            stopReason = "Secure Input, layout change or event tap disabled; protection lost"
+            exitStatus = 3
+            stopGuardLoop()
+        } else if let seconds, elapsed >= Double(seconds) {
+            normalCompletion = true
+            stopGuardLoop()
+        } else if let workerChannel, !workerChannel.heartbeat() {
+            stopReason = "supervisor channel lost"; exitStatus = 3
+            stopGuardLoop()
+        } else if mode == "trial" {
+            let remaining = seconds.map { "\($0 - Int(elapsed))s" } ?? "unlimited"
+            report("ACTIVE tap_enabled=true remaining=\(remaining) captured=\(counts.values.reduce(0,+))")
+        }
     }
 }
 RunLoop.main.add(timer, forMode: .common)
@@ -456,6 +432,8 @@ finishWorker(status: exitStatus) {
     overlay?.hide()
     timer.invalidate()
     alarm(0)
+    // Queue the stop reason before a potentially larger-than-queue count dump.
+    report("ENDED reason=\(stopReason) elapsed=\(Int(ProcessInfo.processInfo.systemUptime - start))s; input filter removed")
     for (key, count) in (mode == "lock" ? [:] : counts).sorted(by: { $0.key < $1.key }) {
         let parts = key.split(separator: ":")
         let pid = Int32(parts[1]) ?? 0
@@ -466,7 +444,6 @@ finishWorker(status: exitStatus) {
             report("brightness_control=\(control.rawValue) \(blocking ? "passed" : "eligible")_events=\(count)")
         }
     }
-    report("ENDED reason=\(stopReason) elapsed=\(Int(ProcessInfo.processInfo.systemUptime - start))s; input filter removed")
 }
 withExtendedLifetime(blockingInstance) {}
 exit(exitStatus)

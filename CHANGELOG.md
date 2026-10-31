@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.1 — 2026-10-31
+
+Preserve bounded editing history so Backspace can correct unlock input that
+exceeds the code length. Add non-interactive code-entry regression tests.
+Prepare privacy overlays before creating the event tap and bound temporary
+AppKit allocations during callbacks. Report the stop reason before count dumps.
+
+Accept queued, current heartbeats after supervisor scheduling delays, preserve
+pre-arm worker exit statuses, and restore terminal settings after pre-arm
+termination. Give native-lock discovery a bounded retry budget and longer
+Accessibility call timeout while still pressing at most once; report ambiguous
+press responses as unconfirmed. Add fake-worker and injected recovery tests.
+Owner-supervised checks on Intel/macOS 15.8.1 passed physical input blocking,
+timed expiry, corrected saved-code unlock and separate crash/hang recovery.
+See the [qualification evidence](docs/privacy-and-recovery.md#review-fix-candidate--2026-10-31).
+
 ## 0.3.0 — 2026-10-28
 
 Make failure recovery the default for `lock`, with explicit
